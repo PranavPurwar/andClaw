@@ -415,24 +415,55 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 wsClient = client
                 var qrAttempt = 0
 
-                val wasWhatsAppProviderRunning = withContext(Dispatchers.IO) {
-                    client.getWhatsAppChannelSnapshot(probe = false)?.running == true
+                val snapshot = withContext(Dispatchers.IO) {
+                    client.getWhatsAppChannelSnapshot(probe = false)
                 }
-                val purgedStaleCreds = withContext(Dispatchers.IO) {
-                    client.purgeStaleWhatsAppCredsIfNeeded()
-                }
-                if (purgedStaleCreds && wasWhatsAppProviderRunning) {
-                    val preRestartPid = app.processManager.gatewayState.value.pid
-                    restartGatewayIfRunning(delayMs = 0L, source = "dashboard:whatsapp_qr_restart")
-                    val restartReady = waitForGatewayRestartReady(
-                        requireTransition = true,
-                        previousPid = preRestartPid,
-                    )
-                    if (!restartReady) {
-                        _whatsappQrState.value = WhatsAppQrState.Error("Gateway restarting. Tap Connect again.")
+                val wasWhatsAppProviderRunning = snapshot?.running == true
+
+                // 401/logged out 루프 감지 → 선제적으로 creds 정리 + 재시작
+                if (snapshot?.is401Loop == true) {
+                    app.processManager.appendGatewayDiagnosticLog("[andClaw][Diag] detected WhatsApp 401 loop; preemptive creds purge + restart")
+                    // creds 파일이 있으면 삭제, 없어도 메모리의 stale session 정리를 위해 restart
+                    withContext(Dispatchers.IO) {
+                        client.purgeStaleWhatsAppCredsIfNeeded(force = true)
+                    }
+                    if (app.processManager.isRunning) {
+                        val preRestartPid = app.processManager.gatewayState.value.pid
+                        restartGatewayIfRunning(delayMs = 0L, source = "dashboard:whatsapp_401_recovery")
+                        val restartReady = waitForGatewayRestartReady(
+                            requireTransition = true,
+                            previousPid = preRestartPid,
+                        )
+                        if (!restartReady) {
+                            _whatsappQrState.value = WhatsAppQrState.Error("Gateway restarting. Tap Connect again.")
+                            client.close()
+                            wsClient = null
+                            return@launch
+                        }
                         client.close()
-                        wsClient = null
-                        return@launch
+                        client = GatewayWsClient(app.prootManager)
+                        wsClient = client
+                    }
+                } else {
+                    val purgedStaleCreds = withContext(Dispatchers.IO) {
+                        client.purgeStaleWhatsAppCredsIfNeeded()
+                    }
+                    if (purgedStaleCreds && wasWhatsAppProviderRunning) {
+                        val preRestartPid = app.processManager.gatewayState.value.pid
+                        restartGatewayIfRunning(delayMs = 0L, source = "dashboard:whatsapp_qr_restart")
+                        val restartReady = waitForGatewayRestartReady(
+                            requireTransition = true,
+                            previousPid = preRestartPid,
+                        )
+                        if (!restartReady) {
+                            _whatsappQrState.value = WhatsAppQrState.Error("Gateway restarting. Tap Connect again.")
+                            client.close()
+                            wsClient = null
+                            return@launch
+                        }
+                        client.close()
+                        client = GatewayWsClient(app.prootManager)
+                        wsClient = client
                     }
                 }
 

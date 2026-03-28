@@ -50,7 +50,18 @@ class GatewayWsClient(private val prootManager: ProotManager) {
         val connected: Boolean?,
         val reconnectAttempts: Int?,
         val lastError: String?,
-    )
+    ) {
+        /** 401/logged out 반복 루프 상태인지 판정 */
+        val is401Loop: Boolean
+            get() {
+                if (connected != false) return false
+                val error = lastError?.trim()?.lowercase().orEmpty()
+                return error.contains("401") ||
+                    error.contains("unauthorized") ||
+                    error.contains("logged out") ||
+                    error.contains("connection failure")
+            }
+    }
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)

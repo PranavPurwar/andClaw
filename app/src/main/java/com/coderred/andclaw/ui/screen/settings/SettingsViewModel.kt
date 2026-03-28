@@ -3492,13 +3492,14 @@ class SettingsViewModel(
             val appContext = getApplication<Application>().applicationContext
             var keepSessionOpen = false
             try {
-                val client = GatewayWsClient(prootManager)
+                var client = GatewayWsClient(prootManager)
                 wsClient = client
                 var qrAttempt = 0
 
                 // 1) stale creds 정리
-                // - gateway가 꺼져 있을 때만 기본 purge 시도
-                // - gateway가 켜져 있으면 건너뛰고 이후 단계에서 필요 시 강제 purge
+                // - gateway가 꺼져 있으면 기본 purge 시도
+                // - gateway가 켜져 있으면 channel snapshot으로 401/logged out 상태를 확인하여
+                //   선제적으로 creds 정리 + 재시작 (QR timeout 30초 대기를 피함)
                 val gatewayActive =
                     processManager.gatewayState.value.status == GatewayStatus.RUNNING ||
                         processManager.gatewayState.value.status == GatewayStatus.STARTING
@@ -3515,10 +3516,38 @@ class SettingsViewModel(
                         "stale creds purge elapsed=${SystemClock.elapsedRealtime() - purgeStartedAt}ms purged=$purgedStaleCreds",
                     )
                 } else {
-                    Log.i(
-                        WHATSAPP_LOG_TAG,
-                        "stale creds purge skipped (gateway active)",
-                    )
+                    // gateway가 켜져 있을 때: 401 루프 상태면 선제적으로 creds 정리 + 재시작
+                    val snapshot = withContext(Dispatchers.IO) {
+                        client.getWhatsAppChannelSnapshot(probe = false)
+                    }
+                    if (snapshot?.is401Loop == true) {
+                        processManager.appendGatewayDiagnosticLog("[andClaw][Diag] detected WhatsApp 401 loop; preemptive creds purge + restart")
+                        // creds 파일이 있으면 삭제, 없어도 메모리의 stale session 정리를 위해 restart
+                        withContext(Dispatchers.IO) {
+                            client.purgeStaleWhatsAppCredsIfNeeded(force = true)
+                        }
+                        restartGatewayForWhatsAppRecovery()
+                        val restartReady = waitForGatewayRestartReady(
+                            timeoutMs = 30_000L,
+                            intervalMs = 500L,
+                            requireTransition = true,
+                        )
+                        if (!restartReady) {
+                            _whatsappQrState.value = WhatsAppQrState.Error(
+                                "Gateway restart timed out. Please try again."
+                            )
+                            return@launch
+                        }
+                        // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
+                        client.close()
+                        client = GatewayWsClient(prootManager)
+                        wsClient = client
+                    } else {
+                        Log.i(
+                            WHATSAPP_LOG_TAG,
+                            "stale creds purge skipped (gateway active, no 401 loop detected)",
+                        )
+                    }
                 }
 
                 // 2) 로그인 가드(FGS) 시작
@@ -3583,6 +3612,10 @@ class SettingsViewModel(
                                     )
                                     return@launch
                                 }
+                                // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
+                                client.close()
+                                client = GatewayWsClient(prootManager)
+                                wsClient = client
                             }
                         }
                         Log.i(WHATSAPP_LOG_TAG, "web.login.start(force=true) request begin [qr-timeout recovery]")
@@ -3641,6 +3674,10 @@ class SettingsViewModel(
                                             )
                                             return@launch
                                         }
+                                        // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
+                                        client.close()
+                                        client = GatewayWsClient(prootManager)
+                                        wsClient = client
                                     }
                                 }
                                 Log.i(WHATSAPP_LOG_TAG, "web.login.start(force=true) request begin [after purge+restart]")
