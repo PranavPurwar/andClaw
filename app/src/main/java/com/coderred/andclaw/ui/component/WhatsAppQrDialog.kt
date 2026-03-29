@@ -51,6 +51,7 @@ import kotlinx.coroutines.delay
 fun WhatsAppQrDialog(
     state: WhatsAppQrState,
     onDismiss: () -> Unit,
+    onStartGateway: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
 
@@ -154,6 +155,18 @@ fun WhatsAppQrDialog(
                             )
                         }
                     }
+                    is WhatsAppQrState.GatewayNotRunning -> {
+                        Box(
+                            modifier = Modifier.size(256.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.whatsapp_gateway_not_running),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     else -> { /* Idle — should not be shown */ }
                 }
             }
@@ -180,6 +193,12 @@ fun WhatsAppQrDialog(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(stringResource(R.string.whatsapp_qr_share))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                if (state is WhatsAppQrState.GatewayNotRunning && onStartGateway != null) {
+                    TextButton(onClick = onStartGateway) {
+                        Text(stringResource(R.string.whatsapp_start_gateway))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                 }

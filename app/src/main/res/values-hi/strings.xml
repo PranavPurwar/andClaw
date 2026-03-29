@@ -190,6 +190,8 @@
     <string name="whatsapp_connect_error">कनेक्शन विफल: %1$s</string>
     <string name="whatsapp_qr_share">शेयर करें</string>
     <string name="whatsapp_qr_scan_done">स्कैन पूरा</string>
+    <string name="whatsapp_gateway_not_running">गेटवे नहीं चल रहा है। WhatsApp कनेक्ट करने के लिए गेटवे शुरू करें।</string>
+    <string name="whatsapp_start_gateway">गेटवे शुरू करें</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">पेयरिंग अनुरोध</string>

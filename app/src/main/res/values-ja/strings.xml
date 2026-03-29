@@ -191,6 +191,8 @@
     <string name="whatsapp_connect_error">接続失敗: %1$s</string>
     <string name="whatsapp_qr_share">共有</string>
     <string name="whatsapp_qr_scan_done">スキャン完了</string>
+    <string name="whatsapp_gateway_not_running">ゲートウェイが起動していません。WhatsApp接続にはゲートウェイを起動してください。</string>
+    <string name="whatsapp_start_gateway">ゲートウェイを起動</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">ペアリングリクエスト</string>

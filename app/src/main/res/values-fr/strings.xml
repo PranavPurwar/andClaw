@@ -191,6 +191,8 @@ Elle n’est pas envoyée à nos serveurs.</string>
     <string name="whatsapp_connect_error">Échec de connexion : %1$s</string>
     <string name="whatsapp_qr_share">Partager</string>
     <string name="whatsapp_qr_scan_done">Scan terminé</string>
+    <string name="whatsapp_gateway_not_running">La passerelle n\'est pas en cours d\'exécution. Démarrez la passerelle pour connecter WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Démarrer la passerelle</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Demandes d\'appairage</string>

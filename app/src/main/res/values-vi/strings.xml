@@ -190,6 +190,8 @@ Khóa này không được gửi đến máy chủ của chúng tôi.</string>
     <string name="whatsapp_connect_error">Kết nối thất bại: %1$s</string>
     <string name="whatsapp_qr_share">Chia sẻ</string>
     <string name="whatsapp_qr_scan_done">Đã quét xong</string>
+    <string name="whatsapp_gateway_not_running">Cổng không đang chạy. Khởi động cổng để kết nối WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Khởi động cổng</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Yêu cầu ghép nối</string>

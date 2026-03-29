@@ -196,6 +196,8 @@ Er wird nicht an unsere Server gesendet.</string>
     <string name="whatsapp_connect_error">Verbindung fehlgeschlagen: %1$s</string>
     <string name="whatsapp_qr_share">Teilen</string>
     <string name="whatsapp_qr_scan_done">Scan abgeschlossen</string>
+    <string name="whatsapp_gateway_not_running">Das Gateway läuft nicht. Starten Sie das Gateway, um WhatsApp zu verbinden.</string>
+    <string name="whatsapp_start_gateway">Gateway starten</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Kopplungsanfragen</string>

@@ -191,6 +191,8 @@ Non viene inviata ai nostri server.</string>
     <string name="whatsapp_connect_error">Connessione fallita: %1$s</string>
     <string name="whatsapp_qr_share">Condividi</string>
     <string name="whatsapp_qr_scan_done">Scansione completata</string>
+    <string name="whatsapp_gateway_not_running">Il gateway non è in esecuzione. Avvia il gateway per connettere WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Avvia gateway</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Richieste di abbinamento</string>

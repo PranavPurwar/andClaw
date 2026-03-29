@@ -393,7 +393,26 @@ class SettingsViewModel(
             }
         }
         viewModelScope.launch(Dispatchers.IO) {
+            // 게이트웨이가 아직 시작 중이면 RUNNING이 될 때까지 대기 후 조회
+            if (processManager.gatewayState.value.status == GatewayStatus.STARTING) {
+                waitForGatewayStatus(GatewayStatus.RUNNING, timeoutMs = 30_000L)
+                // WhatsApp provider 초기화 시간 확보
+                delay(3_000L)
+            }
             refreshWhatsAppLinkStateInternal()
+        }
+        // 게이트웨이 상태가 RUNNING으로 전환될 때 WhatsApp 상태를 자동 갱신한다.
+        viewModelScope.launch {
+            var previousStatus: GatewayStatus? = null
+            processManager.gatewayState.collect { state ->
+                val currentStatus = state.status
+                if (currentStatus == GatewayStatus.RUNNING && previousStatus != GatewayStatus.RUNNING) {
+                    // WhatsApp provider 초기화 시간 확보 후 갱신
+                    delay(3_000L)
+                    withContext(Dispatchers.IO) { refreshWhatsAppLinkStateInternal() }
+                }
+                previousStatus = currentStatus
+            }
         }
         refreshOpenClawUpdateInfo()
     }
@@ -3259,22 +3278,28 @@ class SettingsViewModel(
      * - 그래서 "파일은 남아있는데 실제 미연결"인 케이스를 줄일 수 있다.
      */
     private suspend fun refreshWhatsAppLinkStateInternal() {
+        // creds 파일 체크는 즉시 가능하므로 먼저 반영 (UI 즉시 갱신)
+        val linkedByCreds = runCatching { hasWhatsAppCredsFile() }.getOrDefault(false)
+        _isWhatsAppLinked.value = linkedByCreds
+
+        // 게이트웨이 snapshot으로 정확한 상태를 덮어쓴다 (CLI 호출이라 느림)
         val snapshot = runCatching {
-            val client = GatewayWsClient(prootManager)
+            val client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
             try {
                 client.getWhatsAppChannelSnapshot(probe = false)
             } finally {
                 client.close()
             }
         }.getOrNull()
-        val linkedByCreds = runCatching { hasWhatsAppCredsFile() }.getOrDefault(false)
         val linkedSnapshot = when {
             snapshot?.connected == true -> true
             snapshot?.linked != null -> snapshot.linked == true
             snapshot?.connected != null -> snapshot.connected == true
             else -> null
         }
-        _isWhatsAppLinked.value = linkedSnapshot ?: linkedByCreds
+        if (linkedSnapshot != null) {
+            _isWhatsAppLinked.value = linkedSnapshot
+        }
     }
 
     /**
@@ -3400,7 +3425,7 @@ class SettingsViewModel(
             try {
                 when (channelId.trim().lowercase()) {
                     "whatsapp" -> {
-                        val client = GatewayWsClient(prootManager)
+                        val client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
                         try {
                             val logoutSuccess = withContext(Dispatchers.IO) { client.logoutChannel("whatsapp") }
                             var success = logoutSuccess
@@ -3487,13 +3512,22 @@ class SettingsViewModel(
         }
         isWhatsAppLoginCoordinatorOwner = true
         whatsappQrJob?.cancel()
+        // 게이트웨이가 꺼져 있으면 시작 확인을 요청한다.
+        if (processManager.gatewayState.value.status != GatewayStatus.RUNNING &&
+            processManager.gatewayState.value.status != GatewayStatus.STARTING
+        ) {
+            _whatsappQrState.value = WhatsAppQrState.GatewayNotRunning
+            return
+        }
         _whatsappQrState.value = WhatsAppQrState.Loading
         whatsappQrJob = viewModelScope.launch {
             val appContext = getApplication<Application>().applicationContext
             var keepSessionOpen = false
             try {
-                var client = GatewayWsClient(prootManager)
+                var client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
                 wsClient = client
+                // WebSocket 연결을 먼저 수립하여 이후 RPC 호출을 빠르게 한다.
+                withContext(Dispatchers.IO) { client.connect(openTimeoutMs = 5_000L, handshakeTimeoutMs = 5_000L) }
                 var qrAttempt = 0
 
                 // 1) stale creds 정리
@@ -3540,7 +3574,7 @@ class SettingsViewModel(
                         }
                         // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
                         client.close()
-                        client = GatewayWsClient(prootManager)
+                        client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
                         wsClient = client
                     } else {
                         Log.i(
@@ -3614,7 +3648,7 @@ class SettingsViewModel(
                                 }
                                 // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
                                 client.close()
-                                client = GatewayWsClient(prootManager)
+                                client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
                                 wsClient = client
                             }
                         }
@@ -3676,7 +3710,7 @@ class SettingsViewModel(
                                         }
                                         // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
                                         client.close()
-                                        client = GatewayWsClient(prootManager)
+                                        client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
                                         wsClient = client
                                     }
                                 }
@@ -4023,6 +4057,23 @@ class SettingsViewModel(
                     }
                 }
                 if (!refreshed) break
+            }
+        }
+    }
+
+    fun startGatewayAndRetryWhatsAppQr() {
+        val context = getApplication<Application>()
+        GatewayService.start(context, source = "settings:whatsapp_qr_auto_start")
+        _whatsappQrState.value = WhatsAppQrState.Loading
+        viewModelScope.launch {
+            val ready = waitForGatewayStatus(GatewayStatus.RUNNING, timeoutMs = 60_000L)
+            if (ready) {
+                _whatsappQrState.value = WhatsAppQrState.Idle
+                startWhatsAppQr()
+            } else {
+                _whatsappQrState.value = WhatsAppQrState.Error(
+                    "Gateway failed to start. Please try again."
+                )
             }
         }
     }

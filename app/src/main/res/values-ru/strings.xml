@@ -190,6 +190,8 @@
     <string name="whatsapp_connect_error">Ошибка подключения: %1$s</string>
     <string name="whatsapp_qr_share">Поделиться</string>
     <string name="whatsapp_qr_scan_done">Сканирование завершено</string>
+    <string name="whatsapp_gateway_not_running">Шлюз не запущен. Запустите шлюз для подключения WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Запустить шлюз</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Запросы сопряжения</string>

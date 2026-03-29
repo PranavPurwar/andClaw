@@ -190,6 +190,8 @@
     <string name="whatsapp_connect_error">การเชื่อมต่อล้มเหลว: %1$s</string>
     <string name="whatsapp_qr_share">แชร์</string>
     <string name="whatsapp_qr_scan_done">สแกนเสร็จแล้ว</string>
+    <string name="whatsapp_gateway_not_running">เกตเวย์ไม่ได้ทำงานอยู่ เริ่มเกตเวย์เพื่อเชื่อมต่อ WhatsApp</string>
+    <string name="whatsapp_start_gateway">เริ่มเกตเวย์</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">คำขอจับคู่</string>

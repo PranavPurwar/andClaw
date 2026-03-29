@@ -202,6 +202,8 @@ No se envía a nuestros servidores.</string>
     <string name="whatsapp_connect_error">Error de conexión: %1$s</string>
     <string name="whatsapp_qr_share">Compartir</string>
     <string name="whatsapp_qr_scan_done">Escaneo completado</string>
+    <string name="whatsapp_gateway_not_running">La puerta de enlace no está en ejecución. Inicia la puerta de enlace para conectar WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Iniciar puerta de enlace</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Solicitudes de emparejamiento</string>

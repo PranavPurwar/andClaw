@@ -1819,6 +1819,7 @@ fun SettingsScreen(
         WhatsAppQrDialog(
             state = whatsappQrState,
             onDismiss = { viewModel.cancelWhatsAppQr() },
+            onStartGateway = { viewModel.startGatewayAndRetryWhatsAppQr() },
         )
     }
 }

@@ -206,6 +206,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     readToken = { readGatewayAuthTokenFromConfig(configFile) },
                     attempts = DASHBOARD_TOKEN_READ_ATTEMPTS,
                     delayMs = DASHBOARD_TOKEN_READ_DELAY_MS,
+                    usesTls = app.processManager.gatewayUsesTls,
                 )
             }
             if (url != null) {
@@ -407,12 +408,21 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
         isWhatsAppLoginCoordinatorOwner = true
         whatsappQrJob?.cancel()
+        // 게이트웨이가 꺼져 있으면 시작 확인을 요청한다.
+        if (app.processManager.gatewayState.value.status != GatewayStatus.RUNNING &&
+            app.processManager.gatewayState.value.status != GatewayStatus.STARTING
+        ) {
+            _whatsappQrState.value = WhatsAppQrState.GatewayNotRunning
+            return
+        }
         _whatsappQrState.value = WhatsAppQrState.Loading
         whatsappQrJob = viewModelScope.launch {
             val appContext = getApplication<Application>().applicationContext
             try {
-                var client = GatewayWsClient(app.prootManager)
+                var client = GatewayWsClient(app.prootManager, app.processManager.gatewayUsesTls)
                 wsClient = client
+                // WebSocket 연결을 먼저 수립하여 이후 RPC 호출을 빠르게 한다.
+                withContext(Dispatchers.IO) { client.connect(openTimeoutMs = 5_000L, handshakeTimeoutMs = 5_000L) }
                 var qrAttempt = 0
 
                 val snapshot = withContext(Dispatchers.IO) {
@@ -441,7 +451,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             return@launch
                         }
                         client.close()
-                        client = GatewayWsClient(app.prootManager)
+                        client = GatewayWsClient(app.prootManager, app.processManager.gatewayUsesTls)
                         wsClient = client
                     }
                 } else {
@@ -462,7 +472,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             return@launch
                         }
                         client.close()
-                        client = GatewayWsClient(app.prootManager)
+                        client = GatewayWsClient(app.prootManager, app.processManager.gatewayUsesTls)
                         wsClient = client
                     }
                 }
@@ -562,6 +572,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 wsClient = null
             } finally {
                 finishWhatsAppLoginSession()
+            }
+        }
+    }
+
+    fun startGatewayAndRetryWhatsAppQr() {
+        startGateway()
+        _whatsappQrState.value = WhatsAppQrState.Loading
+        viewModelScope.launch {
+            val ready = waitForGatewayRestartReady(timeoutMs = 60_000L)
+            if (ready) {
+                _whatsappQrState.value = WhatsAppQrState.Idle
+                startWhatsAppQr()
+            } else {
+                _whatsappQrState.value = WhatsAppQrState.Error(
+                    "Gateway failed to start. Please try again."
+                )
             }
         }
     }
@@ -736,6 +762,7 @@ sealed class WhatsAppQrState {
         val expiresAtMs: Long,
     ) : WhatsAppQrState()
     data object Connected : WhatsAppQrState()
+    data object GatewayNotRunning : WhatsAppQrState()
     data class Error(val message: String) : WhatsAppQrState()
 }
 
@@ -775,12 +802,14 @@ internal suspend fun resolveDashboardUrl(
     readToken: suspend () -> String?,
     attempts: Int,
     delayMs: Long,
+    usesTls: Boolean = false,
 ): String? {
     repeat(attempts.coerceAtLeast(1)) { index ->
         val token = readToken()
         if (!token.isNullOrBlank()) {
             val encodedToken = URLEncoder.encode(token, StandardCharsets.UTF_8.toString())
-            return "http://localhost:18789/#token=$encodedToken"
+            val scheme = if (usesTls) "https" else "http"
+            return "$scheme://localhost:18789/#token=$encodedToken"
         }
         if (index < attempts - 1) {
             delay(delayMs)

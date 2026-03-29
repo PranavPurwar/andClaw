@@ -33,7 +33,10 @@ import kotlin.coroutines.resume
  * - 응답: {"type":"res","id":"<id>","ok":true,"payload":{...}}
  * - 이벤트: {"type":"event","event":"<name>","payload":{...}}
  */
-class GatewayWsClient(private val prootManager: ProotManager) {
+class GatewayWsClient(
+    private val prootManager: ProotManager,
+    private val usesTls: Boolean = false,
+) {
 
     companion object {
         private const val TAG = "GatewayWsClient"
@@ -63,8 +66,25 @@ class GatewayWsClient(private val prootManager: ProotManager) {
             }
     }
 
-    private val client = OkHttpClient.Builder()
+    /** 로컬 loopback TLS 통신 시 self-signed 인증서를 trust하도록 OkHttpClient.Builder를 설정한다. */
+    private fun OkHttpClient.Builder.applyLoopbackTlsTrust(): OkHttpClient.Builder {
+        val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(
+            object : javax.net.ssl.X509TrustManager {
+                override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+            },
+        )
+        val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+        sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+        hostnameVerifier { _, _ -> true }
+        return this
+    }
+
+    private val client: OkHttpClient = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .apply { if (usesTls) applyLoopbackTlsTrust() }
         .build()
 
     private var ws: WebSocket? = null
@@ -113,12 +133,14 @@ class GatewayWsClient(private val prootManager: ProotManager) {
         // WebSocket 연결
         val connected = withTimeoutOrNull(openTimeoutMs.coerceAtLeast(250L)) {
             suspendCancellableCoroutine { cont ->
+                val wsUrl = if (usesTls) "wss://127.0.0.1:18789" else "ws://127.0.0.1:18789"
+                val originUrl = if (usesTls) "https://localhost:18789" else "http://localhost:18789"
                 val request = Request.Builder()
-                    .url("ws://127.0.0.1:18789")
-                    .header("Origin", "http://localhost:18789")
+                    .url(wsUrl)
+                    .header("Origin", originUrl)
                     .build()
 
-                Log.d(TAG, "connect: opening WebSocket to ws://127.0.0.1:18789")
+                Log.d(TAG, "connect: opening WebSocket to $wsUrl")
                 ws = client.newWebSocket(request, object : WebSocketListener() {
                     override fun onOpen(webSocket: WebSocket, response: Response) {
                         Log.d(TAG, "connect: WebSocket opened")
@@ -164,10 +186,10 @@ class GatewayWsClient(private val prootManager: ProotManager) {
                     put("minProtocol", 3)
                     put("maxProtocol", 3)
                     put("client", JSONObject().apply {
-                        put("id", "webchat-ui")
+                        put("id", "openclaw-control-ui")
                         put("version", "dev")
                         put("platform", "android")
-                        put("mode", "webchat")
+                        put("mode", "ui")
                     })
                     // Newer gateway builds require operator scopes for privileged RPCs
                     // such as `web.login.start` (WhatsApp QR bootstrap).
@@ -211,9 +233,10 @@ class GatewayWsClient(private val prootManager: ProotManager) {
         val client = OkHttpClient.Builder()
             .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
             .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+            .apply { if (usesTls) applyLoopbackTlsTrust() }
             .build()
         val request = Request.Builder()
-            .url("http://127.0.0.1:18789/health")
+            .url(if (usesTls) "https://127.0.0.1:18789/health" else "http://127.0.0.1:18789/health")
             .get()
             .build()
         return try {
@@ -269,6 +292,25 @@ class GatewayWsClient(private val prootManager: ProotManager) {
     }
 
     /**
+     * WebSocket RPC를 우선 시도하고 실패 시 CLI 폴백으로 호출한다.
+     */
+    private suspend fun callPreferWebSocket(
+        method: String,
+        params: JSONObject = JSONObject(),
+        timeoutMs: Long = 30_000L,
+        cliTimeoutMs: Long = timeoutMs,
+    ): JSONObject? {
+        // WebSocket이 이미 연결되어 있으면 사용, 아니면 CLI로 직행.
+        // 새 WebSocket 연결은 시도하지 않는다 — connect()는 QR 플로우 등
+        // 장기 세션에서 호출자가 명시적으로 수행한다.
+        if (ws != null) {
+            val result = call(method, params, timeoutMs)
+            if (result != null) return result
+        }
+        return callViaGatewayCli(method, params, timeoutMs = cliTimeoutMs)
+    }
+
+    /**
      * WhatsApp QR 로그인을 시작한다.
      * @return QR 데이터 URL (data:image/png;base64,... 또는 일반 문자열), 실패 시 null
      */
@@ -280,7 +322,7 @@ class GatewayWsClient(private val prootManager: ProotManager) {
             if (force) put("force", true)
             put("timeoutMs", timeoutMs)
         }
-        val result = callViaGatewayCli(
+        val result = callPreferWebSocket(
             "web.login.start",
             params,
             timeoutMs = timeoutMs + 10_000L,
@@ -305,7 +347,7 @@ class GatewayWsClient(private val prootManager: ProotManager) {
             put("channel", safeChannel)
             put("accountId", accountId)
         }
-        val result = callViaGatewayCli("channels.logout", params, timeoutMs = 40_000L) ?: return false
+        val result = callPreferWebSocket("channels.logout", params, timeoutMs = 40_000L) ?: return false
 
         if (!result.has("loggedOut")) {
             lastCallErrorMessage = extractGatewayMessage(result) ?: "Gateway response missing loggedOut"
@@ -440,7 +482,7 @@ class GatewayWsClient(private val prootManager: ProotManager) {
             put("timeoutMs", normalizedTimeoutMs)
         }
         val callTimeoutMs = (normalizedTimeoutMs + 5_000L).coerceAtMost(25_000L)
-        val result = callViaGatewayCli("channels.status", params, timeoutMs = callTimeoutMs)
+        val result = callPreferWebSocket("channels.status", params, timeoutMs = callTimeoutMs)
             ?: return null
         return parseWhatsAppChannelSnapshot(result)
     }
@@ -585,13 +627,14 @@ class GatewayWsClient(private val prootManager: ProotManager) {
                     "if [ -x /usr/local/bin/openclaw ]; then OPENCLAW_BIN=/usr/local/bin/openclaw; " +
                     "elif command -v openclaw >/dev/null 2>&1; then OPENCLAW_BIN=\"$(command -v openclaw)\"; " +
                     "else echo '{\"ok\":false,\"error\":{\"message\":\"openclaw binary not found\"}}'; exit 127; fi;"
+            val wsScheme = if (usesTls) "wss" else "ws"
             val attempts = listOf(
                 // Fallback without profile bootstrap for environments where profile scripts are broken.
-                "$envBootstrap $cliBootstrap \"\$OPENCLAW_BIN\" gateway call $safeMethod --url ws://127.0.0.1:18789$tokenArg --timeout $timeoutMs --params '$paramsArg' --json",
+                "$envBootstrap $cliBootstrap \"\$OPENCLAW_BIN\" gateway call $safeMethod --url $wsScheme://127.0.0.1:18789$tokenArg --timeout $timeoutMs --params '$paramsArg' --json",
                 // Loopback fallback without profile bootstrap.
-                "$envBootstrap $cliBootstrap \"\$OPENCLAW_BIN\" gateway call $safeMethod --url ws://localhost:18789$tokenArg --timeout $timeoutMs --params '$paramsArg' --json",
+                "$envBootstrap $cliBootstrap \"\$OPENCLAW_BIN\" gateway call $safeMethod --url $wsScheme://localhost:18789$tokenArg --timeout $timeoutMs --params '$paramsArg' --json",
                 // Last-resort with profile bootstrap.
-                "$profileBootstrap $envBootstrap $cliBootstrap \"\$OPENCLAW_BIN\" gateway call $safeMethod --url ws://127.0.0.1:18789$tokenArg --timeout $timeoutMs --params '$paramsArg' --json",
+                "$profileBootstrap $envBootstrap $cliBootstrap \"\$OPENCLAW_BIN\" gateway call $safeMethod --url $wsScheme://127.0.0.1:18789$tokenArg --timeout $timeoutMs --params '$paramsArg' --json",
             )
 
             var lastFailureMessage: String? = null

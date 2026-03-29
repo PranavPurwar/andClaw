@@ -337,6 +337,11 @@ class ProcessManager(
     private var lastBraveSearchApiKey: String = ""
     private var lastMemorySearchEnabled: Boolean = true
     private var lastMemorySearchProvider: String = DEFAULT_MEMORY_SEARCH_PROVIDER
+
+    /** 게이트웨이가 wss:// (TLS)로 리스닝 중인지 여부. parseLogLine에서 감지. */
+    @Volatile
+    var gatewayUsesTls: Boolean = false
+        private set
     private var lastMemorySearchApiKey: String = ""
     private var startupAttemptStartedElapsedMs: Long? = null
     private val openClawConfigLock = Any()
@@ -429,7 +434,7 @@ class ProcessManager(
     suspend fun probeGatewayHealthDirect(timeoutMs: Long = 8_000L): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                GatewayWsClient(prootManager).probeGatewayHealth(timeoutMs)
+                GatewayWsClient(prootManager, gatewayUsesTls).probeGatewayHealth(timeoutMs)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -627,6 +632,12 @@ class ProcessManager(
                         put("MEMORY_SEARCH_API_KEY", normalizedMemorySearchApiKey)
                     }
 
+                    // OpenClaw 버전을 환경변수로 전달 (minHostVersion 체크용)
+                    val openclawVersion = readInstalledOpenClawVersion()
+                    if (!openclawVersion.isNullOrBlank()) {
+                        put("OPENCLAW_VERSION", openclawVersion)
+                    }
+
                     // 채널 봇 토큰
                     if (channelConfig.telegramEnabled && channelConfig.telegramBotToken.isNotBlank()) {
                         put("TELEGRAM_BOT_TOKEN", channelConfig.telegramBotToken)
@@ -786,6 +797,7 @@ class ProcessManager(
 
         process = null
 
+        gatewayUsesTls = false
         _gatewayState.value = GatewayState(status = GatewayStatus.STOPPED)
         addLog("[andClaw] Gateway stopped")
     }
@@ -1443,10 +1455,15 @@ class ProcessManager(
                 changed = true
             }
 
-            // gateway.controlUi.allowedOrigins 설정 (앱 내 WebSocket 연결 허용)
+            // gateway.controlUi 설정 (앱 내 WebSocket 연결 허용)
             val controlUi = gateway.optJSONObject("controlUi") ?: JSONObject().also { gateway.put("controlUi", it) }
             if (!controlUi.has("allowedOrigins")) {
                 controlUi.put("allowedOrigins", org.json.JSONArray().apply { put("*") })
+                changed = true
+            }
+            // allowInsecureAuth: loopback token 인증으로 operator 스코프 획득 허용 (3.28+)
+            if (controlUi.optBoolean("allowInsecureAuth", false) != true) {
+                controlUi.put("allowInsecureAuth", true)
                 changed = true
             }
 
@@ -2040,6 +2057,14 @@ class ProcessManager(
         addLog(line)
     }
 
+    private fun readInstalledOpenClawVersion(): String? {
+        val packageJson = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw/package.json")
+        if (!packageJson.exists()) return null
+        return runCatching {
+            org.json.JSONObject(packageJson.readText()).optString("version").trim().ifBlank { null }
+        }.getOrNull()
+    }
+
     private fun addLog(line: String) {
         Log.i(TAG, line)
         val current = _logLines.value.toMutableList()
@@ -2087,6 +2112,7 @@ class ProcessManager(
             lineLower.contains("18789") &&
             !lineLower.contains("already listening")
         ) {
+            gatewayUsesTls = lineLower.contains("wss://")
             clearStartupAttempt()
             _gatewayState.value = _gatewayState.value.copy(
                 status = GatewayStatus.RUNNING,

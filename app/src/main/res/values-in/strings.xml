@@ -190,6 +190,8 @@ Kunci ini tidak dikirim ke server kami.</string>
     <string name="whatsapp_connect_error">Koneksi gagal: %1$s</string>
     <string name="whatsapp_qr_share">Bagikan</string>
     <string name="whatsapp_qr_scan_done">Pindai selesai</string>
+    <string name="whatsapp_gateway_not_running">Gateway tidak berjalan. Mulai gateway untuk menghubungkan WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Mulai Gateway</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Permintaan Pemasangan</string>

@@ -16,7 +16,9 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URI
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -151,16 +153,16 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    private fun resolveDefaultModelMetadata(
+    private suspend fun resolveDefaultModelMetadata(
         provider: String,
         modelId: String,
-    ): SelectedModelConfigEntry {
+    ): SelectedModelConfigEntry = withContext(Dispatchers.IO) {
         val normalizedProvider = normalizeProvider(provider)
         val canonicalModelId = canonicalizeModelIdForProvider(normalizedProvider, modelId)
-        if (canonicalModelId.isBlank()) return defaultModelMetadata(modelId)
+        if (canonicalModelId.isBlank()) return@withContext defaultModelMetadata(modelId)
 
         val installedMetadata = resolveInstalledModelMetadata(normalizedProvider, canonicalModelId)
-        return installedMetadata ?: defaultModelMetadata(canonicalModelId)
+        installedMetadata ?: defaultModelMetadata(canonicalModelId)
     }
 
     private fun resolveInstalledModelMetadata(

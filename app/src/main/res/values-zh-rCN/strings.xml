@@ -191,6 +191,8 @@
     <string name="whatsapp_connect_error">连接失败: %1$s</string>
     <string name="whatsapp_qr_share">分享</string>
     <string name="whatsapp_qr_scan_done">扫描完成</string>
+    <string name="whatsapp_gateway_not_running">网关未运行。请启动网关以连接WhatsApp。</string>
+    <string name="whatsapp_start_gateway">启动网关</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">配对请求</string>

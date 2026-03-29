@@ -201,6 +201,8 @@
     <string name="whatsapp_connect_error">연결 실패: %1$s</string>
     <string name="whatsapp_qr_share">공유</string>
     <string name="whatsapp_qr_scan_done">스캔 완료</string>
+    <string name="whatsapp_gateway_not_running">게이트웨이가 실행 중이 아닙니다. WhatsApp 연결을 위해 게이트웨이를 시작하세요.</string>
+    <string name="whatsapp_start_gateway">게이트웨이 시작</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">페어링 요청</string>

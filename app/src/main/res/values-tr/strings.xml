@@ -190,6 +190,8 @@ Anahtarınız sunucularımıza gönderilmez.</string>
     <string name="whatsapp_connect_error">Bağlantı başarısız: %1$s</string>
     <string name="whatsapp_qr_share">Paylaş</string>
     <string name="whatsapp_qr_scan_done">Tarama tamamlandı</string>
+    <string name="whatsapp_gateway_not_running">Ağ geçidi çalışmıyor. WhatsApp bağlantısı için ağ geçidini başlatın.</string>
+    <string name="whatsapp_start_gateway">Ağ Geçidini Başlat</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Eşleştirme İstekleri</string>

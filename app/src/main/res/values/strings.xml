@@ -227,6 +227,8 @@ Do not close or force-stop the app while recovery is in progress.</string>
     <string name="whatsapp_connect_error">Connection failed: %1$s</string>
     <string name="whatsapp_qr_share">Share</string>
     <string name="whatsapp_qr_scan_done">Scan done</string>
+    <string name="whatsapp_gateway_not_running">The gateway is not running. Start the gateway to connect WhatsApp.</string>
+    <string name="whatsapp_start_gateway">Start Gateway</string>
 
     <!-- Pairing Notification -->
     <string name="pairing_notification_channel">Pairing Requests</string>
