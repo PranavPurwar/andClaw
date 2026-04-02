@@ -647,23 +647,9 @@ NODE
             fi
         done
 
-        # WhatsApp extension 의존성 설치 (npm 패키지에 node_modules 누락 대응)
-        WA_EXT=/usr/local/lib/node_modules/openclaw/dist/extensions/whatsapp
-        if [ -f \$WA_EXT/package.json ] && [ ! -d \$WA_EXT/node_modules ]; then
-            echo '--- Installing WhatsApp extension dependencies ---'
-            # workspace:* 참조 제거 후 production deps만 설치
-            WA_PKG=\$WA_EXT/package.json python3 -c 'import json,os;p=os.environ[\"WA_PKG\"];d=json.load(open(p));d.pop(\"devDependencies\",None);d.pop(\"peerDependencies\",None);open(p,\"w\").write(json.dumps(d,indent=2))'
-            cd \$WA_EXT && npm install --omit=dev 2>&1
-            # extension 내부 .bin symlink도 제거
-            find \$WA_EXT/node_modules -path '*/.bin/*' -type l -delete || true
-
-            # (pruning은 docker cp 후 호스트에서 실행)
-
-            cd /
-            du -sh \$WA_EXT/node_modules
-        else
-            echo '--- WhatsApp extension dependencies already present, skipping ---'
-        fi
+        # WhatsApp extension: baileys/jimp은 OpenClaw 빌드 시 dist JS에 이미 인라인됨
+        # node_modules 설치 불필요 — 호스트 pruning에서 잔여 파일 정리
+        echo '--- WhatsApp extension dependencies: skipped (inlined in dist) ---'
 
         # Windows docker cp에서 symlink 생성 권한 오류를 피하기 위해 .bin 심링크 제거
         find /usr/local/lib/node_modules/openclaw/node_modules -path '*/.bin/*' -type l -delete || true
@@ -685,6 +671,11 @@ NODE
 
     docker cp andclaw-openclaw-builder:/tmp/openclaw-arm64.tar /tmp/openclaw-arm64.tar
 
+    # pruning 전 원본 백업
+    mkdir -p "$PROJECT_DIR/backups"
+    gzip -c /tmp/openclaw-arm64.tar > "$PROJECT_DIR/backups/openclaw-arm64-pre-prune.tar.gz"
+    echo "   pruning 전 원본 백업: backups/openclaw-arm64-pre-prune.tar.gz"
+
     # proot ptrace 오버헤드 절감: node_modules에서 불필요한 파일 제거
     echo "   호스트에서 node_modules pruning 중..."
     PRUNE_DIR=/tmp/openclaw-prune-$$
@@ -704,7 +695,86 @@ NODE
     find . -path '*/node_modules/*' -name 'tsconfig*' -delete 2>/dev/null || true
     find . -path '*/node_modules/*' -name '.editorconfig' -delete 2>/dev/null || true
     find . -path '*/node_modules/*' -name 'Makefile' -delete 2>/dev/null || true
+    # 추가 pruning: 테스트/예제/문서 디렉토리
+    find . -path '*/node_modules/*' -type d \( -name "test" -o -name "tests" -o -name "__tests__" -o -name "example" -o -name "examples" -o -name ".github" \) -exec rm -rf {} + 2>/dev/null || true
+    find . -path '*/node_modules/*' -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
+    # 추가 pruning: md/txt/ts 소스/설정 파일
+    find . -path '*/node_modules/*' -name '*.md' -delete 2>/dev/null || true
+    find . -path '*/node_modules/*' -name '*.txt' ! -name 'requirements.txt' -delete 2>/dev/null || true
+    find . -path '*/node_modules/*' -name '*.ts' ! -name '*.d.ts' -delete 2>/dev/null || true
+    find . -path '*/node_modules/*' \( -name '.yarn*' -o -name '.prettier*' -o -name '.babel*' -o -name 'jest.config*' -o -name '.travis.yml' -o -name '.coveralls.yml' -o -name 'appveyor.yml' -o -name '.zuul.yml' -o -name 'Gruntfile*' -o -name 'Gulpfile*' -o -name 'karma.conf*' -o -name '.nycrc*' -o -name '*.flow' -o -name '*.mts' -o -name '*.cts' \) -delete 2>/dev/null || true
+    # 미사용 플랫폼 native addon 삭제 (arm64-linux만 유지)
+    NM_DIR="./usr/local/lib/node_modules/openclaw/node_modules"
+    for d in "$NM_DIR"/@img/sharp-*; do
+      [ -d "$d" ] || continue; b=$(basename "$d")
+      [ "$b" = "sharp-linux-arm64" ] || [ "$b" = "sharp-libvips-linux-arm64" ] && continue
+      echo "   [prune] removing platform addon: @img/$b"
+      rm -rf "$d"
+    done
+    for d in "$NM_DIR"/@lancedb/*; do
+      [ -d "$d" ] || continue
+      b=$(basename "$d")
+      [ "$b" = "lancedb-linux-arm64-gnu" ] || [ "$b" = "lancedb" ] && continue
+      echo "   [prune] removing platform addon: @lancedb/$b"
+      rm -rf "$d"
+    done
+    for d in "$NM_DIR"/@napi-rs/*; do
+      [ -d "$d" ] || continue
+      b=$(basename "$d")
+      [ "$b" = "canvas-linux-arm64-gnu" ] || [ "$b" = "canvas" ] || [ "$b" = "wasm-runtime" ] && continue
+      echo "   [prune] removing platform addon: @napi-rs/$b"
+      rm -rf "$d"
+    done
+    for d in "$NM_DIR"/@snazzah/*; do
+      [ -d "$d" ] || continue
+      b=$(basename "$d")
+      [ "$b" = "davey-linux-arm64-gnu" ] || [ "$b" = "davey" ] && continue
+      echo "   [prune] removing platform addon: @snazzah/$b"
+      rm -rf "$d"
+    done
+    if [ -d "$NM_DIR/koffi/build/koffi" ]; then
+      for pd in "$NM_DIR"/koffi/build/koffi/*/; do
+        [ "$(basename "${pd%/}")" != "linux_arm64" ] && rm -rf "$pd" && echo "   [prune] removing koffi platform: $(basename "${pd%/}")"
+      done
+    fi
+    # discord extension 내 x64 addon 삭제
+    EXT_DIR="./usr/local/lib/node_modules/openclaw/dist/extensions"
+    rm -rf "$EXT_DIR/discord/node_modules/@snazzah/davey-linux-x64-gnu" 2>/dev/null || true
+    # 빈 디렉토리 정리
     find . -path '*/node_modules/*' -type d -empty -delete 2>/dev/null || true
+
+    # ── 미사용 채널/프로바이더 extension 삭제 (임시 주석 처리: 4.1 테스트) ──
+    # EXT_DIR="./usr/local/lib/node_modules/openclaw/dist/extensions"
+    # # 미사용 채널
+    # UNUSED_CHANNELS="bluebubbles imessage irc line matrix mattermost slack feishu signal nostr googlechat msteams qqbot tlon twitch zalo zalouser synology-chat nextcloud-talk diffs"
+    # # 미사용 프로바이더 (andClaw에서 지원하지 않는 것들)
+    # UNUSED_PROVIDERS="amazon-bedrock anthropic-vertex byteplus chutes huggingface kilocode litellm lobster microsoft microsoft-foundry modelstudio moonshot nvidia qianfan sglang vllm venice volcengine xiaomi together xai copilot-proxy cloudflare-ai-gateway vercel-ai-gateway"
+    # if [ -d "$EXT_DIR" ]; then
+    #     for unused in $UNUSED_CHANNELS $UNUSED_PROVIDERS; do
+    #         if [ -d "$EXT_DIR/$unused" ]; then
+    #             echo "   [prune] removing unused extension: $unused"
+    #             rm -rf "$EXT_DIR/$unused"
+    #         fi
+    #     done
+    #     # 남은 extension의 불필요한 node_modules 삭제
+    #     USED_EXTENSIONS="whatsapp telegram discord browser memory-core memory-lancedb brave"
+    #     for ext_nm_dir in "$EXT_DIR"/*/node_modules; do
+    #         [ -d "$ext_nm_dir" ] || continue
+    #         ext_name=$(basename "$(dirname "$ext_nm_dir")")
+    #         is_used=false
+    #         for used in $USED_EXTENSIONS; do
+    #             if [ "$ext_name" = "$used" ]; then
+    #                 is_used=true
+    #                 break
+    #             fi
+    #         done
+    #         if [ "$is_used" = "false" ]; then
+    #             echo "   [prune] unused extension node_modules: $ext_name"
+    #             rm -rf "$ext_nm_dir"
+    #         fi
+    #     done
+    # fi
+
     AFTER=$(find . -type f | wc -l)
     echo "   Pruned: $BEFORE -> $AFTER files"
     tar cf /tmp/openclaw-arm64.tar usr/

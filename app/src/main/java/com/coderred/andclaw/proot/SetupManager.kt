@@ -429,6 +429,13 @@ class SetupManager(
         log(">> Installing OpenClaw...")
         openclawVersionFile.delete()
 
+        // 기존 openclaw 디렉토리 삭제 (이전 번들의 잔존 파일 방지)
+        val openclawDir = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
+        if (openclawDir.exists()) {
+            log("   Removing previous OpenClaw installation...")
+            openclawDir.deleteRecursively()
+        }
+
         updateStep(SetupStep.INSTALLING_OPENCLAW, 0.60f)
         log("   Extracting bundle...")
 
@@ -496,6 +503,13 @@ class SetupManager(
 
         try {
             log(">> OpenClaw manual sync (full reinstall)...")
+
+            // 기존 openclaw 디렉토리 삭제 (이전 번들의 잔존 파일 방지)
+            val openclawDir = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
+            if (openclawDir.exists()) {
+                log("   Removing previous OpenClaw installation...")
+                openclawDir.deleteRecursively()
+            }
 
             tarInstaller.install(
                 spec = TarInstallSpec(

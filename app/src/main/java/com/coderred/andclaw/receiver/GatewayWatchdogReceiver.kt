@@ -22,10 +22,10 @@ class GatewayWatchdogReceiver : BroadcastReceiver() {
     companion object {
         private const val ACTION_WATCHDOG = "com.coderred.andclaw.action.GATEWAY_WATCHDOG"
         private const val REQUEST_CODE = 21001
-        private const val WATCHDOG_INTERVAL_MS = 30_000L
+        private const val WATCHDOG_INTERVAL_MS = 180_000L
         private const val MIN_DELAY_MS = 5_000L
-        private const val HEALTH_PROBE_TIMEOUT_MS = 6_000L
-        private const val RUNNING_UNHEALTHY_RECOVERY_THRESHOLD = 2
+        private const val HEALTH_PROBE_TIMEOUT_MS = 20_000L
+        private const val RUNNING_UNHEALTHY_RECOVERY_THRESHOLD = 3
         private const val STARTING_RECOVERY_GRACE_PERIOD_SECONDS = 300L
         private val runningUnhealthyFailures = AtomicInteger(0)
 
@@ -207,11 +207,10 @@ class GatewayWatchdogReceiver : BroadcastReceiver() {
                     (processManager == null && prefs.getGatewaySurvivorMetadata()?.startupAttemptActive == true)
                 val previousRunningUnhealthyFailures = runningUnhealthyFailures.get()
                 val runningHealthy = if (status == GatewayStatus.RUNNING) {
-                    val healthy = processManager?.probeGatewayHealth(timeoutMs = HEALTH_PROBE_TIMEOUT_MS) == true
-                    // Probe 중 상태 전이가 일어난 경우 stale RUNNING 판정을 폐기한다.
-                    gatewayState = processManager?.gatewayState?.value ?: gatewayState
-                    status = gatewayState?.status ?: status
-                    if (status != GatewayStatus.RUNNING) true else healthy
+                    // 프로세스 존재 + 포트 리스닝만 확인 (HTTP 요청 없음).
+                    // proot 환경에서 AI 처리 중 이벤트 루프 포화로 HTTP 응답이
+                    // 지연되어 오탐 재시작하는 문제를 방지한다.
+                    processManager?.probeGatewayHealthLightweight() != false
                 } else {
                     true
                 }

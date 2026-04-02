@@ -427,8 +427,26 @@ class ProcessManager(
     }
 
     suspend fun probeGatewayHealth(timeoutMs: Long = 8_000L): Boolean {
-        if (_gatewayState.value.status != GatewayStatus.RUNNING) return false
+        val state = _gatewayState.value
+        if (state.status != GatewayStatus.RUNNING) return false
+        // startup 진행 중 (dashboardReady=false)이면 healthy로 간주 — 아직 HTTP 응답 불가 상태
+        if (!state.dashboardReady) return true
         return probeGatewayHealthDirect(timeoutMs)
+    }
+
+    /**
+     * HTTP 요청 없이 프로세스 존재 + 포트 리스닝 여부만으로 헬스 판정.
+     * proot 환경에서 AI 처리 중 이벤트 루프 포화로 HTTP 응답이 지연되는 문제를 우회한다.
+     */
+    fun probeGatewayHealthLightweight(): Boolean {
+        val state = _gatewayState.value
+        if (state.status != GatewayStatus.RUNNING) return false
+        if (!state.dashboardReady) return true
+        val pid = state.pid ?: return false
+        // 프로세스 존재 확인
+        if (!File("/proc/$pid").exists()) return false
+        // 포트 18789에서 리스닝 중인지 확인
+        return findListeningSocketInodes(GATEWAY_PORT).isNotEmpty()
     }
 
     suspend fun probeGatewayHealthDirect(timeoutMs: Long = 8_000L): Boolean {
@@ -1430,7 +1448,15 @@ class ProcessManager(
                     })
                     put("models", org.json.JSONArray().apply {
                         ollamaEntries.forEach { entry ->
-                            put(buildModelEntryJson(entry, api = "ollama"))
+                            val modelJson = buildModelEntryJson(entry, api = "ollama")
+                            // ollama-cloud: OpenClaw의 ollama stream fn이 provider apiKey를
+                            // 요청 헤더로 전달하지 않는 버그 우회 — 모델별 headers로 직접 주입
+                            if (apiProvider == "ollama-cloud" && apiKey.isNotBlank()) {
+                                modelJson.put("headers", JSONObject().apply {
+                                    put("Authorization", "Bearer $apiKey")
+                                })
+                            }
+                            put(modelJson)
                         }
                     })
                 })
@@ -1481,6 +1507,28 @@ class ProcessManager(
                 }
                 if (entries.has("openai-codex")) {
                     entries.remove("openai-codex")
+                    changed = true
+                }
+            }
+
+            // plugins.load.paths에 존재하지 않는 경로 제거 (4.1 extensions→dist/extensions 이관 대응)
+            val load = plugins?.optJSONObject("load")
+            val loadPaths = load?.optJSONArray("paths")
+            if (loadPaths != null && loadPaths.length() > 0) {
+                val validPaths = org.json.JSONArray()
+                for (i in 0 until loadPaths.length()) {
+                    val p = loadPaths.optString(i, "")
+                    if (p.isNotBlank() && File(prootManager.rootfsDir, p.removePrefix("/")).exists()) {
+                        validPaths.put(p)
+                    }
+                }
+                if (validPaths.length() != loadPaths.length()) {
+                    if (validPaths.length() == 0) {
+                        load.remove("paths")
+                        if (load.length() == 0) plugins?.remove("load")
+                    } else {
+                        load.put("paths", validPaths)
+                    }
                     changed = true
                 }
             }
@@ -1911,7 +1959,13 @@ class ProcessManager(
                         .filter { it.id.isNotBlank() }
                         .distinctBy { it.id }
                         .forEach { entry ->
-                            put(buildModelEntryJson(entry, api = "ollama"))
+                            val modelJson = buildModelEntryJson(entry, api = "ollama")
+                            if (apiProvider == "ollama-cloud" && apiKey.isNotBlank()) {
+                                modelJson.put("headers", JSONObject().apply {
+                                    put("Authorization", "Bearer $apiKey")
+                                })
+                            }
+                            put(modelJson)
                         }
                 })
             }
@@ -2051,7 +2105,8 @@ class ProcessManager(
             !patchFile.readText().contains("uncaughtException") ||
             !patchFile.readText().contains("EAFNOSUPPORT") ||
             !patchFile.readText().contains("openrouter.ai/api/v1/models") ||
-            patchFile.readText().contains("_cpSpawn")
+            patchFile.readText().contains("_cpSpawn") ||
+            patchFile.readText().contains("handle.sync")
         if (needsUpdate) {
             addLog("[andClaw] Creating Node.js compatibility patch...")
             patchFile.writeText(buildString {
@@ -2089,6 +2144,7 @@ class ProcessManager(
                 appendLine("  }")
                 appendLine("  return _origFetch.apply(this, arguments);")
                 appendLine("};")
+                appendLine()
                 appendLine()
                 appendLine("const os = require('os');")
                 appendLine("const _ni = os.networkInterfaces;")
@@ -2170,15 +2226,9 @@ class ProcessManager(
             !lineLower.contains("already listening")
         ) {
             gatewayUsesTls = lineLower.contains("wss://")
-            // 서버 포트가 열렸지만 아직 startup 작업 진행 중 — dashboardReady는 false 유지.
-            // Browser control listening 로그가 나오면 완전히 RUNNING으로 전환.
-            if (_gatewayState.value.status != GatewayStatus.RUNNING) {
-                _gatewayState.value = _gatewayState.value.copy(
-                    status = GatewayStatus.RUNNING,
-                    dashboardReady = false,
-                )
-                addLog("[andClaw] Gateway port open, waiting for full startup...")
-            }
+            // 서버 포트가 열렸지만 아직 startup 작업 진행 중 — STARTING 유지.
+            // Browser control listening 로그가 나오면 RUNNING으로 전환.
+            addLog("[andClaw] Gateway port open, waiting for full startup...")
             startPairingObserver()
         }
 
@@ -2187,6 +2237,7 @@ class ProcessManager(
             lineLower.contains("browser/server") && lineLower.contains("listening")) {
             clearStartupAttempt()
             _gatewayState.value = _gatewayState.value.copy(
+                status = GatewayStatus.RUNNING,
                 dashboardReady = true,
             )
             addLog("[andClaw] Gateway is ready!")
