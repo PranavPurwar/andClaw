@@ -19,6 +19,7 @@ Included Components (Key Runtime/Binary)
 - Distribution note:
   - This app redistributes OpenClaw files under install_time_assets/src/main/assets/openclaw.
   - Keep MIT notice and provide source access link for distributed app sources.
+  - Public source repository for this app: https://github.com/coderredlab/andClaw
 
 3) Node.js (bundled runtime)
 - Upstream: https://nodejs.org/

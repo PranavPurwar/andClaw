@@ -20,6 +20,8 @@ When distributing APK/AAB artifacts, you must comply with each component's licen
   - This app redistributes OpenClaw files under `install_time_assets/src/main/assets/openclaw`.
   - Keep MIT notice and provide source access link for distributed app sources:
     - https://github.com/coderredlab/andClaw
+  - Public source repository for this app:
+    - https://github.com/coderredlab/andClaw
 
 ### 3) OpenClaw bundled dependencies (selected copyleft-sensitive)
 - The bundled OpenClaw asset tree includes many transitive packages.
