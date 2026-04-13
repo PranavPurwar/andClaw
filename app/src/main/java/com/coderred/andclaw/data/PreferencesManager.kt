@@ -10,8 +10,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.coderred.andclaw.proot.OpenClawModelCatalogReader
-import com.coderred.andclaw.proot.ProotManager
+import com.coderred.andclaw.proroot.OpenClawModelCatalogReader
+import com.coderred.andclaw.proroot.ProrootManager
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -170,7 +170,7 @@ class PreferencesManager(private val context: Context) {
         modelId: String,
     ): SelectedModelConfigEntry? {
         val normalizedProvider = normalizeProvider(provider)
-        val rootfsDir = runCatching { ProotManager(context).rootfsDir }.getOrNull() ?: return null
+        val rootfsDir = runCatching { ProrootManager(context).rootfsDir }.getOrNull() ?: return null
         if (!rootfsDir.exists()) return null
 
         val bundleEntry = when (normalizedProvider) {
@@ -224,8 +224,8 @@ class PreferencesManager(private val context: Context) {
     private fun hasGitHubCopilotAuthProfile(): Boolean {
         if (hasGitHubCopilotEnvAuth()) return true
 
-        val prootManager = runCatching { ProotManager(context) }.getOrNull() ?: return false
-        val rootfsDir = prootManager.rootfsDir
+        val prorootManager = runCatching { ProrootManager(context) }.getOrNull() ?: return false
+        val rootfsDir = prorootManager.rootfsDir
         if (!rootfsDir.exists()) return false
 
         val authFile = java.io.File(rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
@@ -251,7 +251,7 @@ class PreferencesManager(private val context: Context) {
         return runCatching {
             val authStatusCommand = "export NODE_OPTIONS='--require /root/.openclaw-patch.js' && " +
                 "openclaw models status --json 2>&1"
-            val authStatusOutput = prootManager.executeAndCapture(authStatusCommand)
+            val authStatusOutput = prorootManager.executeAndCapture(authStatusCommand)
             hasOpenClawModelsStatusAuth(authStatusOutput, "github-copilot")
         }.getOrDefault(false)
     }

@@ -14,8 +14,8 @@
     <string name="setup_subtitle">ตั้งค่า OpenClaw บน Android</string>
     <string name="setup_storage">ที่เก็บข้อมูล</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">พร้อม</string>
-    <string name="setup_proot_unavailable">ไม่พร้อมใช้</string>
+    <string name="setup_proroot_ready">พร้อม</string>
+    <string name="setup_proroot_unavailable">ไม่พร้อมใช้</string>
     <string name="setup_description">ทั้งหมดรวมอยู่ในแอปแล้ว แค่แตะปุ่มด้านล่างเท่านั้น</string>
     <string name="setup_steps_detail">1. เตรียมสภาพแวดล้อม\n2. ติดตั้งส่วนประกอบ\n3. ตั้งค่าเครื่องมือ AI\n4. การตั้งค่าขั้นสุดท้าย</string>
     <string name="setup_estimate">ใช้เวลา 1–3 นาที</string>
@@ -24,9 +24,9 @@
     <string name="setup_btn_retry">ลองใหม่</string>
     <string name="setup_error_default">เกิดข้อผิดพลาดระหว่างการตั้งค่า</string>
     <string name="setup_err_storage">ที่เก็บข้อมูลไม่เพียงพอ (ต้องการขั้นต่ำ 1.5 GB)</string>
-    <string name="setup_err_proot">ไบนารี proot ไม่รวมอยู่ใน APK\nเรียกใช้ scripts/setup-assets.sh และสร้างใหม่</string>
+    <string name="setup_err_proroot">ไบนารี proroot ไม่รวมอยู่ใน APK\nเรียกใช้ scripts/setup-assets.sh และสร้างใหม่</string>
     <string name="step_idle">ว่าง</string>
-    <string name="step_checking_proot">กำลังเตรียม…</string>
+    <string name="step_checking_proroot">กำลังเตรียม…</string>
     <string name="step_extracting_rootfs">กำลังตั้งค่าสภาพแวดล้อม…</string>
     <string name="step_configuring_rootfs">กำลังตั้งค่า…</string>
     <string name="step_extracting_nodejs">กำลังติดตั้งส่วนประกอบ…</string>

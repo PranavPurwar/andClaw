@@ -1,27 +1,18 @@
 # Third-Party Licenses
 
-This project includes third-party open-source components.
-When distributing APK/AAB artifacts, you must comply with each component's license.
+This project includes third-party components.
+When distributing APK/AAB artifacts, you must comply with each component's license or usage terms.
 
 ## Included Components (Key Runtime/Binary)
 
-### 1) proot
-- Upstream: https://github.com/proot-me/proot
-- Package source used in build script:
-  - https://packages.termux.dev/apt/termux-main/pool/main/p/proot/
-- License: GPL-2.0-or-later
+### 1) proroot
+- Upstream: https://github.com/coderredlab/proroot
+- License: Proprietary (free to use; redistribution of modified binaries is not permitted)
 - Distribution note:
-  - If `libproot.so` is shipped in APK/AAB, provide GPL notice and corresponding source access.
+  - `libproroot.so` is documented upstream as proprietary/free-to-use.
+  - `libldlinux.so` is derived from GNU C Library and remains subject to LGPL-2.1 obligations.
 
-### 2) libtalloc
-- Upstream: https://www.samba.org/
-- Package source used in build script:
-  - https://packages.termux.dev/apt/termux-main/pool/main/libt/libtalloc/
-- License: LGPL-3.0-or-later
-- Distribution note:
-  - If `libtalloc.so` is shipped in APK/AAB, include LGPL notice and source/offer details as required.
-
-### 3) openclaw (bundled CLI assets)
+### 2) openclaw (bundled CLI assets)
 - Upstream:
   - https://www.npmjs.com/package/openclaw
 - License: MIT
@@ -30,12 +21,21 @@ When distributing APK/AAB artifacts, you must comply with each component's licen
   - Keep MIT notice and provide source access link for distributed app sources:
     - https://github.com/coderredlab/andClaw
 
-### 4) OpenClaw bundled dependencies (selected copyleft-sensitive)
+### 3) OpenClaw bundled dependencies (selected copyleft-sensitive)
 - The bundled OpenClaw asset tree includes many transitive packages.
 - Current bundled tree includes packages with additional obligations:
-  - `@whiskeysockets/libsignal-node` (GPL-3.0)
-  - `@img/sharp-libvips-linux-arm64` (LGPL-3.0-or-later)
-  - `jszip` (MIT OR GPL-3.0-or-later)
+  - `@whiskeysockets/libsignal-node`
+    - Upstream: https://github.com/WhiskeySockets/libsignal-node
+    - License: GPL-3.0
+    - Note: bundled through the WhatsApp runtime path.
+  - `@img/sharp-libvips-linux-arm64`
+    - Upstream: https://github.com/lovell/sharp-libvips
+    - License: LGPL-3.0-or-later
+    - Note: bundles libvips runtime used by sharp on linux-arm64.
+  - `jszip`
+    - Upstream: https://github.com/Stuk/jszip
+    - License: MIT OR GPL-3.0-or-later
+    - Note: OpenClaw uses JSZip for zip/archive handling paths.
 - Distribution note:
   - If these packages are redistributed in release assets, keep their license notices and provide source access/offer details as required by each license.
   - If related features are not used, consider excluding those dependency paths from bundled assets to reduce compliance scope.

@@ -98,7 +98,7 @@ import com.coderred.andclaw.R
 import com.coderred.andclaw.data.SetupStep
 import com.coderred.andclaw.data.GatewayStatus
 import com.coderred.andclaw.data.PairingRequest
-import com.coderred.andclaw.proot.BundleUpdateFailureState
+import com.coderred.andclaw.proroot.BundleUpdateFailureState
 import com.coderred.andclaw.ui.component.KeepScreenOnEffect
 import com.coderred.andclaw.ui.component.SessionLogsDialog
 import com.coderred.andclaw.ui.theme.StatusError

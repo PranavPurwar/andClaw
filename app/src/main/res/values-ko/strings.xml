@@ -15,8 +15,8 @@
     <string name="setup_subtitle">안드로이드에서 OpenClaw를 설정하세요</string>
     <string name="setup_storage">저장 공간</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">준비됨</string>
-    <string name="setup_proot_unavailable">없음</string>
+    <string name="setup_proroot_ready">준비됨</string>
+    <string name="setup_proroot_unavailable">없음</string>
     <string name="setup_description">필요한 모든 것이 포함되어 있어요. 아래 버튼만 누르면 돼요.</string>
     <string name="setup_steps_detail">1. 환경 준비\n2. 구성 요소 설치\n3. AI 엔진 설치\n4. 마무리 설정</string>
     <string name="setup_estimate">1~3분 소요</string>
@@ -25,11 +25,11 @@
     <string name="setup_btn_retry">다시 시도</string>
     <string name="setup_error_default">설치 중 오류가 발생했습니다</string>
     <string name="setup_err_storage">저장 공간이 부족합니다 (최소 1.5GB 필요)</string>
-    <string name="setup_err_proot">proot 바이너리가 APK에 포함되어 있지 않습니다.\nscripts/setup-assets.sh 실행 후 다시 빌드하세요.</string>
+    <string name="setup_err_proroot">proroot 바이너리가 APK에 포함되어 있지 않습니다.\nscripts/setup-assets.sh 실행 후 다시 빌드하세요.</string>
 
     <!-- Setup Steps -->
     <string name="step_idle">대기 중</string>
-    <string name="step_checking_proot">준비 중…</string>
+    <string name="step_checking_proroot">준비 중…</string>
     <string name="step_extracting_rootfs">환경 설정 중…</string>
     <string name="step_configuring_rootfs">구성 중…</string>
     <string name="step_extracting_nodejs">구성 요소 설치 중…</string>

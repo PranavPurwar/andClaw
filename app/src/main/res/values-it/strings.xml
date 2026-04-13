@@ -12,8 +12,8 @@
     <string name="setup_subtitle">Configura OpenClaw su Android</string>
     <string name="setup_storage">Archiviazione</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">Pronto</string>
-    <string name="setup_proot_unavailable">Non disponibile</string>
+    <string name="setup_proroot_ready">Pronto</string>
+    <string name="setup_proroot_unavailable">Non disponibile</string>
     <string name="setup_description">Tutto il necessario è incluso. Basta toccare il pulsante qui sotto.</string>
     <string name="setup_steps_detail">1. Preparazione ambiente\n2. Installazione componenti\n3. Configurazione motore IA\n4. Configurazione finale</string>
     <string name="setup_estimate">1–3 minuti</string>
@@ -22,9 +22,9 @@
     <string name="setup_btn_retry">Riprova</string>
     <string name="setup_error_default">Si è verificato un errore durante l\'installazione</string>
     <string name="setup_err_storage">Spazio di archiviazione insufficiente (minimo 1,5 GB richiesti)</string>
-    <string name="setup_err_proot">Binario proot non incluso nell\'APK.\nEsegui scripts/setup-assets.sh e ricompila.</string>
+    <string name="setup_err_proroot">Binario proroot non incluso nell\'APK.\nEsegui scripts/setup-assets.sh e ricompila.</string>
     <string name="step_idle">Inattivo</string>
-    <string name="step_checking_proot">Preparazione…</string>
+    <string name="step_checking_proroot">Preparazione…</string>
     <string name="step_extracting_rootfs">Configurazione ambiente…</string>
     <string name="step_configuring_rootfs">Configurazione…</string>
     <string name="step_extracting_nodejs">Installazione componenti…</string>

@@ -2,7 +2,7 @@ package com.coderred.andclaw.ui.screen.dashboard
 
 import com.coderred.andclaw.data.GatewayState
 import com.coderred.andclaw.data.GatewayStatus
-import com.coderred.andclaw.proot.BundleUpdateFailureState
+import com.coderred.andclaw.proroot.BundleUpdateFailureState
 
 internal object RuntimeRecoverableFailureDetector {
     const val FAILURE_TYPE = "RUNTIME_OPENCLAW_EXEC"

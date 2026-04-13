@@ -1,8 +1,8 @@
-package com.coderred.andclaw.proot.installer
+package com.coderred.andclaw.proroot.installer
 
 import android.content.Context
 import android.content.res.AssetFileDescriptor
-import com.coderred.andclaw.proot.ArchiveUtils
+import com.coderred.andclaw.proroot.ArchiveUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

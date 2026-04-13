@@ -14,8 +14,8 @@
     <string name="setup_subtitle">Настройте OpenClaw на Android</string>
     <string name="setup_storage">Хранилище</string>
     <string name="setup_storage_mb">%1$d МБ</string>
-    <string name="setup_proot_ready">Готово</string>
-    <string name="setup_proot_unavailable">Недоступно</string>
+    <string name="setup_proroot_ready">Готово</string>
+    <string name="setup_proroot_unavailable">Недоступно</string>
     <string name="setup_description">Всё включено. Просто нажмите кнопку ниже.</string>
     <string name="setup_steps_detail">1. Подготовка окружения\n2. Установка компонентов\n3. Настройка AI движка\n4. Финальная конфигурация</string>
     <string name="setup_estimate">Займёт 1–3 минуты</string>
@@ -24,9 +24,9 @@
     <string name="setup_btn_retry">Повторить</string>
     <string name="setup_error_default">Произошла ошибка во время установки</string>
     <string name="setup_err_storage">Недостаточно свободного места (требуется минимум 1,5 ГБ)</string>
-    <string name="setup_err_proot">Бинарный файл proot не включён в APK.\nЗапустите scripts/setup-assets.sh и пересоберите.</string>
+    <string name="setup_err_proroot">Бинарный файл proroot не включён в APK.\nЗапустите scripts/setup-assets.sh и пересоберите.</string>
     <string name="step_idle">Ожидание</string>
-    <string name="step_checking_proot">Подготовка…</string>
+    <string name="step_checking_proroot">Подготовка…</string>
     <string name="step_extracting_rootfs">Настройка окружения…</string>
     <string name="step_configuring_rootfs">Конфигурация…</string>
     <string name="step_extracting_nodejs">Установка компонентов…</string>

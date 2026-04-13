@@ -1,7 +1,7 @@
 # andClaw
 
 andClaw는 안드로이드 폰을 온디바이스 AI 게이트웨이 호스트로 바꿔주는 앱입니다.
-`proot` 기반 Ubuntu arm64 환경에서 OpenClaw를 실행하고, Jetpack Compose UI로 설치, 온보딩, 페어링, 실행 제어를 제공합니다.
+`proroot` 기반 Ubuntu arm64 환경에서 OpenClaw를 실행하고, Jetpack Compose UI로 설치, 온보딩, 페어링, 실행 제어를 제공합니다.
 
 Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 
@@ -26,7 +26,7 @@ Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 ## 프로젝트 구조
 
 - `app/` - Android 앱 모듈 (Kotlin + Jetpack Compose)
-- `app/src/main/java/com/coderred/andclaw/` - 기능 레이어별 앱 코드 (`ui/`, `data/`, `proot/`, `service/`, `receiver/`, `auth/`)
+- `app/src/main/java/com/coderred/andclaw/` - 기능 레이어별 앱 코드 (`ui/`, `data/`, `proroot/`, `service/`, `receiver/`, `auth/`)
 - `app/src/test/` - JVM 단위 테스트
 - `app/src/androidTest/` - 계측 테스트
 - `install_time_assets/` - Play Asset Delivery install-time asset pack
@@ -71,13 +71,6 @@ Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 Google Play는 Android 15+ 타깃 앱에 16KB 페이지 크기 호환을 요구합니다. `scripts/setup-assets.sh`는 패키징 전에 번들 네이티브 바이너리를 검증합니다.
 
 - `scripts/setup-assets.sh`가 `app/src/main/jniLibs/arm64-v8a/*.so`의 LOAD 세그먼트 정렬을 확인합니다.
-- `libproot-loader32.so`가 없거나 아직 4KB 정렬이면 Docker로 `termux/proot` 소스에서 16KB 호환본을 자동 빌드해 교체합니다.
-
-`loader32`만 수동으로 다시 빌드하려면 다음 명령을 실행하세요:
-
-```bash
-./scripts/build-proot-loader32-16kb.sh
-```
 
 ## 릴리스 메모
 

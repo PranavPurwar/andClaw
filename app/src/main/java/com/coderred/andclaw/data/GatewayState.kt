@@ -39,7 +39,7 @@ data class PairingRequest(
 
 enum class SetupStep(@StringRes val displayNameRes: Int) {
     IDLE(R.string.step_idle),
-    CHECKING_PROOT(R.string.step_checking_proot),
+    CHECKING_PROROOT(R.string.step_checking_proroot),
     EXTRACTING_ROOTFS(R.string.step_extracting_rootfs),
     CONFIGURING_ROOTFS(R.string.step_configuring_rootfs),
     EXTRACTING_NODEJS(R.string.step_extracting_nodejs),

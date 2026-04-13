@@ -1,4 +1,4 @@
-package com.coderred.andclaw.proot
+package com.coderred.andclaw.proroot
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive

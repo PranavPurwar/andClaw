@@ -1,4 +1,4 @@
-package com.coderred.andclaw.proot.installer
+package com.coderred.andclaw.proroot.installer
 
 import android.content.Context
 import android.util.Log

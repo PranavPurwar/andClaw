@@ -12,8 +12,8 @@
     <string name="setup_subtitle">AndroidでOpenClawを設定します</string>
     <string name="setup_storage">ストレージ</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">準備完了</string>
-    <string name="setup_proot_unavailable">利用不可</string>
+    <string name="setup_proroot_ready">準備完了</string>
+    <string name="setup_proroot_unavailable">利用不可</string>
     <string name="setup_description">必要なものはすべて含まれています。下のボタンを押すだけ。</string>
     <string name="setup_steps_detail">1. 環境の準備\n2. コンポーネントのインストール\n3. AIエンジンのセットアップ\n4. 最終設定</string>
     <string name="setup_estimate">1〜3分</string>
@@ -22,9 +22,9 @@
     <string name="setup_btn_retry">再試行</string>
     <string name="setup_error_default">セットアップ中にエラーが発生しました</string>
     <string name="setup_err_storage">ストレージ不足（最低1.5GB必要）</string>
-    <string name="setup_err_proot">proot バイナリが APK に含まれていません。\nscripts/setup-assets.sh を実行して再ビルドしてください。</string>
+    <string name="setup_err_proroot">proroot バイナリが APK に含まれていません。\nscripts/setup-assets.sh を実行して再ビルドしてください。</string>
     <string name="step_idle">待機中</string>
-    <string name="step_checking_proot">準備中…</string>
+    <string name="step_checking_proroot">準備中…</string>
     <string name="step_extracting_rootfs">環境をセットアップ中…</string>
     <string name="step_configuring_rootfs">設定中…</string>
     <string name="step_extracting_nodejs">コンポーネントをインストール中…</string>

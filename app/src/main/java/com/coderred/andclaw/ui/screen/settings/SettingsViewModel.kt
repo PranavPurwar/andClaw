@@ -44,11 +44,11 @@ import com.coderred.andclaw.data.transfer.TransferVersionExpectation
 import com.coderred.andclaw.data.hasGitHubCopilotEnvAuth
 import com.coderred.andclaw.data.hasOpenClawModelsStatusAuth
 import com.coderred.andclaw.data.hasOpenClawSecretRef
-import com.coderred.andclaw.proot.BundleUpdateOutcome
-import com.coderred.andclaw.proot.GatewayWsClient
-import com.coderred.andclaw.proot.OpenClawModelCatalogReader
-import com.coderred.andclaw.proot.ProcessManager
-import com.coderred.andclaw.proot.WhatsAppLoginCoordinator
+import com.coderred.andclaw.proroot.BundleUpdateOutcome
+import com.coderred.andclaw.proroot.GatewayWsClient
+import com.coderred.andclaw.proroot.OpenClawModelCatalogReader
+import com.coderred.andclaw.proroot.ProcessManager
+import com.coderred.andclaw.proroot.WhatsAppLoginCoordinator
 import com.coderred.andclaw.service.GatewayService
 import com.coderred.andclaw.ui.screen.dashboard.WhatsAppQrState
 import kotlinx.coroutines.Dispatchers
@@ -196,7 +196,7 @@ class SettingsViewModel(
 
     }
     private val prefs = (application as AndClawApp).preferencesManager
-    private val prootManager = (application as AndClawApp).prootManager
+    private val prorootManager = (application as AndClawApp).prorootManager
     private val processManager = (application as AndClawApp).processManager
     private val setupManager = (application as AndClawApp).setupManager
 
@@ -1082,9 +1082,10 @@ class SettingsViewModel(
                     }
                 }
 
+                setupManager.clearNodeCompileCache()
                 val command = "export NODE_OPTIONS='--require /root/.openclaw-patch.js' && " +
                     "openclaw doctor --fix 2>&1"
-                val result = prootManager.executeWithResult(
+                val result = prorootManager.executeWithResult(
                     command = command,
                     timeoutMs = 300_000,
                     extraEnv = doctorEnv,
@@ -1333,7 +1334,7 @@ class SettingsViewModel(
             outputDir.listFiles()?.forEach { it.delete() }
             val request = TransferExportRequest(
                 outputDir = outputDir,
-                rootfsDir = prootManager.rootfsDir ?: throw IllegalStateException("rootfsDir is not available"),
+                rootfsDir = prorootManager.rootfsDir ?: throw IllegalStateException("rootfsDir is not available"),
                 approvedPreferencesSnapshot = snapshotTransferPreferences(),
                 applicationId = app.packageName,
                 versionCode = resolveCurrentVersionCode(app),
@@ -1428,7 +1429,7 @@ class SettingsViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             val app = getApplication<Application>()
-            val rootfsDir = prootManager.rootfsDir ?: app.filesDir
+            val rootfsDir = prorootManager.rootfsDir ?: app.filesDir
             val importRequest = TransferRestoreRequest(
                 artifactFile = artifactFile,
                 password = importPassword.toCharArray(),
@@ -2146,7 +2147,7 @@ class SettingsViewModel(
 
     private fun loadBuiltInModels(provider: String): List<OpenRouterModel> {
         val fallbackModels = defaultBuiltInModels(provider)
-        val rootfsDir = prootManager.rootfsDir
+        val rootfsDir = prorootManager.rootfsDir
         val builtInModels = OpenClawModelCatalogReader.loadProviderModels(rootfsDir, provider)
             .ifEmpty {
                 if (provider == "openai-codex") {
@@ -2169,7 +2170,7 @@ class SettingsViewModel(
     }
 
     private fun resolveCodexModelsFromInstalledBundle(): List<OpenRouterModel> {
-        val rootfsDir = runCatching { prootManager.rootfsDir }.getOrNull() ?: return emptyList()
+        val rootfsDir = runCatching { prorootManager.rootfsDir }.getOrNull() ?: return emptyList()
 
         val directCodexModels = OpenClawModelCatalogReader.loadProviderModels(rootfsDir, "openai-codex")
             .map { it.toOpenRouterModel() }
@@ -2776,7 +2777,7 @@ class SettingsViewModel(
     }
 
     private fun writeGitHubCopilotCredentials(accessToken: String, profileId: String = "github-copilot:github") {
-        val authFile = File(prootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
+        val authFile = File(prorootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
         authFile.parentFile?.mkdirs()
 
         val root = if (authFile.exists()) {
@@ -2804,7 +2805,7 @@ class SettingsViewModel(
     }
 
     private fun updateGitHubCopilotProfilePreference(profileId: String) {
-        val configFile = File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+        val configFile = File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
         if (!configFile.exists()) return
 
         val root = runCatching { JSONObject(configFile.readText()) }
@@ -2857,7 +2858,7 @@ class SettingsViewModel(
     private fun detectGitHubCopilotAuth(): Boolean {
         if (hasGitHubCopilotEnvAuth()) return true
         return try {
-            val openClawAuthFile = File(prootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
+            val openClawAuthFile = File(prorootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
             if (openClawAuthFile.exists()) {
                 val hasStoredProfile = runCatching {
                     val root = JSONObject(openClawAuthFile.readText())
@@ -2878,7 +2879,7 @@ class SettingsViewModel(
 
             val authStatusCommand = "export NODE_OPTIONS='--require /root/.openclaw-patch.js' && " +
                 "openclaw models status --json 2>&1"
-            val authStatusOutput = prootManager.executeAndCapture(authStatusCommand)
+            val authStatusOutput = prorootManager.executeAndCapture(authStatusCommand)
             hasOpenClawModelsStatusAuth(authStatusOutput, "github-copilot")
         } catch (_: Exception) {
             false
@@ -2888,7 +2889,7 @@ class SettingsViewModel(
     private fun detectCodexAuth(): Boolean {
         return try {
             // OpenClaw auth profiles
-            val openClawAuthFile = File(prootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
+            val openClawAuthFile = File(prorootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
             if (openClawAuthFile.exists()) {
                 runCatching {
                     val root = JSONObject(openClawAuthFile.readText())
@@ -2907,7 +2908,7 @@ class SettingsViewModel(
             }
 
             // Codex CLI auth file fallback
-            val codexAuthFile = File(prootManager.rootfsDir, "root/.codex/auth.json")
+            val codexAuthFile = File(prorootManager.rootfsDir, "root/.codex/auth.json")
             if (codexAuthFile.exists() && codexAuthFile.readText().contains("chatgpt.com")) {
                 return true
             }
@@ -2915,7 +2916,7 @@ class SettingsViewModel(
             // CLI 상태 조회 (느린 편이라 마지막 fallback)
             val authStatusCommand = "export NODE_OPTIONS='--require /root/.openclaw-patch.js' && " +
                 "openclaw models status --json 2>&1"
-            val authStatusOutput = prootManager.executeAndCapture(authStatusCommand)
+            val authStatusOutput = prorootManager.executeAndCapture(authStatusCommand)
             hasOpenClawModelsStatusAuth(authStatusOutput, "openai-codex")
         } catch (_: Exception) {
             false
@@ -3008,7 +3009,7 @@ class SettingsViewModel(
     }
 
     private fun writeCodexOAuthCredentials(token: OAuthTokenResult, accountId: String) {
-        val authFile = File(prootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
+        val authFile = File(prorootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
         authFile.parentFile?.mkdirs()
 
         val root = if (authFile.exists()) {
@@ -3052,7 +3053,7 @@ class SettingsViewModel(
 
         runCatching {
             val profileId = "$normalizedProvider:default"
-            val authFile = File(prootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
+            val authFile = File(prorootManager.rootfsDir, "root/.openclaw/agents/main/agent/auth-profiles.json")
             authFile.parentFile?.mkdirs()
 
             val root = if (authFile.exists()) {
@@ -3102,7 +3103,7 @@ class SettingsViewModel(
     }
 
     private fun ensureCodexPrimaryModel() {
-        val configFile = File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+        val configFile = File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
         if (!configFile.exists()) return
 
         runCatching {
@@ -3208,7 +3209,7 @@ class SettingsViewModel(
     // ── WhatsApp QR ──
 
     private fun hasWhatsAppCredsFile(): Boolean {
-        val rootfs = prootManager.rootfsDir ?: return false
+        val rootfs = prorootManager.rootfsDir ?: return false
         val whatsappCredsRoot = File(rootfs, "root/.openclaw/credentials/whatsapp")
         if (!whatsappCredsRoot.exists()) return false
 
@@ -3235,7 +3236,7 @@ class SettingsViewModel(
 
         // 게이트웨이 snapshot으로 정확한 상태를 덮어쓴다 (CLI 호출이라 느림)
         val snapshot = runCatching {
-            val client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
+            val client = GatewayWsClient(prorootManager, processManager.gatewayUsesTls)
             try {
                 client.getWhatsAppChannelSnapshot(probe = false)
             } finally {
@@ -3340,7 +3341,7 @@ class SettingsViewModel(
     }
 
     private fun clearWhatsAppCredsOffline(): Boolean {
-        val rootfs = prootManager.rootfsDir ?: return false
+        val rootfs = prorootManager.rootfsDir ?: return false
         val whatsappCredsRoot = File(rootfs, "root/.openclaw/credentials/whatsapp")
         if (!whatsappCredsRoot.exists()) return true
         return runCatching { whatsappCredsRoot.deleteRecursively() }.getOrDefault(false)
@@ -3376,7 +3377,7 @@ class SettingsViewModel(
             try {
                 when (channelId.trim().lowercase()) {
                     "whatsapp" -> {
-                        val client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
+                        val client = GatewayWsClient(prorootManager, processManager.gatewayUsesTls)
                         try {
                             val logoutSuccess = withContext(Dispatchers.IO) { client.logoutChannel("whatsapp") }
                             var success = logoutSuccess
@@ -3475,7 +3476,7 @@ class SettingsViewModel(
             val appContext = getApplication<Application>().applicationContext
             var keepSessionOpen = false
             try {
-                var client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
+                var client = GatewayWsClient(prorootManager, processManager.gatewayUsesTls)
                 wsClient = client
                 // WebSocket 연결을 먼저 수립하여 이후 RPC 호출을 빠르게 한다.
                 withContext(Dispatchers.IO) { client.connect(openTimeoutMs = 5_000L, handshakeTimeoutMs = 5_000L) }
@@ -3525,7 +3526,7 @@ class SettingsViewModel(
                         }
                         // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
                         client.close()
-                        client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
+                        client = GatewayWsClient(prorootManager, processManager.gatewayUsesTls)
                         wsClient = client
                     } else {
                         Log.i(
@@ -3599,7 +3600,7 @@ class SettingsViewModel(
                                 }
                                 // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
                                 client.close()
-                                client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
+                                client = GatewayWsClient(prorootManager, processManager.gatewayUsesTls)
                                 wsClient = client
                             }
                         }
@@ -3661,7 +3662,7 @@ class SettingsViewModel(
                                         }
                                         // 재시작으로 기존 WebSocket 연결이 끊겼으므로 새 클라이언트 생성
                                         client.close()
-                                        client = GatewayWsClient(prootManager, processManager.gatewayUsesTls)
+                                        client = GatewayWsClient(prorootManager, processManager.gatewayUsesTls)
                                         wsClient = client
                                     }
                                 }

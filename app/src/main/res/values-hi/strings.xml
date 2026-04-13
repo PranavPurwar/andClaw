@@ -14,8 +14,8 @@
     <string name="setup_subtitle">Android पर OpenClaw सेट अप करें</string>
     <string name="setup_storage">संग्रहण</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">तैयार</string>
-    <string name="setup_proot_unavailable">उपलब्ध नहीं</string>
+    <string name="setup_proroot_ready">तैयार</string>
+    <string name="setup_proroot_unavailable">उपलब्ध नहीं</string>
     <string name="setup_description">सब कुछ शामिल है। बस नीचे दिए गए बटन पर टैप करें।</string>
     <string name="setup_steps_detail">1. वातावरण तैयार करें\n2. घटक स्थापित करें\n3. AI इंजन सेट अप करें\n4. अंतिम कॉन्फ़िगरेशन</string>
     <string name="setup_estimate">1-3 मिनट लगते हैं</string>
@@ -24,9 +24,9 @@
     <string name="setup_btn_retry">पुनः प्रयास करें</string>
     <string name="setup_error_default">सेटअप के दौरान एक त्रुटि हुई</string>
     <string name="setup_err_storage">अपर्याप्त संग्रहण (कम से कम 1.5 GB आवश्यक)</string>
-    <string name="setup_err_proot">proot बाइनरी APK में शामिल नहीं है।\nscripts/setup-assets.sh चलाएं और फिर से बिल्ड करें।</string>
+    <string name="setup_err_proroot">proroot बाइनरी APK में शामिल नहीं है।\nscripts/setup-assets.sh चलाएं और फिर से बिल्ड करें।</string>
     <string name="step_idle">निष्क्रिय</string>
-    <string name="step_checking_proot">तैयारी हो रही है…</string>
+    <string name="step_checking_proroot">तैयारी हो रही है…</string>
     <string name="step_extracting_rootfs">वातावरण सेट अप हो रहा है…</string>
     <string name="step_configuring_rootfs">कॉन्फ़िगर किया जा रहा है…</string>
     <string name="step_extracting_nodejs">घटक स्थापित किए जा रहे हैं…</string>

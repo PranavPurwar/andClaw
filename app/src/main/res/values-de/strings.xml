@@ -14,8 +14,8 @@
     <string name="setup_subtitle">OpenClaw auf Android einrichten</string>
     <string name="setup_storage">Speicher</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">Bereit</string>
-    <string name="setup_proot_unavailable">Nicht verfügbar</string>
+    <string name="setup_proroot_ready">Bereit</string>
+    <string name="setup_proroot_unavailable">Nicht verfügbar</string>
     <string name="setup_description">Alles Nötige ist enthalten. Einfach auf den Button tippen.</string>
     <string name="setup_steps_detail">1. Umgebung vorbereiten\n2. Komponenten installieren\n3. KI-Engine einrichten\n4. Abschließende Konfiguration</string>
     <string name="setup_estimate">1–3 Minuten</string>
@@ -24,10 +24,10 @@
     <string name="setup_btn_retry">Erneut versuchen</string>
     <string name="setup_error_default">Bei der Installation ist ein Fehler aufgetreten</string>
     <string name="setup_err_storage">Nicht genügend Speicherplatz (mindestens 1,5 GB erforderlich)</string>
-    <string name="setup_err_proot">proot-Binary nicht im APK enthalten.\nFühren Sie scripts/setup-assets.sh aus und erstellen Sie neu.</string>
+    <string name="setup_err_proroot">proroot-Binary nicht im APK enthalten.\nFühren Sie scripts/setup-assets.sh aus und erstellen Sie neu.</string>
     <!-- Setup Steps -->
     <string name="step_idle">Bereit</string>
-    <string name="step_checking_proot">Vorbereitung…</string>
+    <string name="step_checking_proroot">Vorbereitung…</string>
     <string name="step_extracting_rootfs">Umgebung wird eingerichtet…</string>
     <string name="step_configuring_rootfs">Konfiguration…</string>
     <string name="step_extracting_nodejs">Komponenten werden installiert…</string>

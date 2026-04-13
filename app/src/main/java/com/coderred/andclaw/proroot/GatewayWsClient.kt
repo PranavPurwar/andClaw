@@ -1,4 +1,4 @@
-package com.coderred.andclaw.proot
+package com.coderred.andclaw.proroot
 
 import android.util.Log
 import kotlinx.coroutines.CancellationException
@@ -34,7 +34,7 @@ import kotlin.coroutines.resume
  * - 이벤트: {"type":"event","event":"<name>","payload":{...}}
  */
 class GatewayWsClient(
-    private val prootManager: ProotManager,
+    private val prorootManager: ProrootManager,
     private val usesTls: Boolean = false,
 ) {
 
@@ -108,7 +108,7 @@ class GatewayWsClient(
      * openclaw.json에서 gateway.auth.token을 읽어 반환한다.
      */
     fun getAuthToken(): String {
-        val configFile = File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+        val configFile = File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
         if (!configFile.exists()) return ""
         return try {
             val json = JSONObject(configFile.readText())
@@ -256,7 +256,7 @@ class GatewayWsClient(
 
     private fun readGatewayAuthToken(): String? {
         return runCatching {
-            val configFile = java.io.File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+            val configFile = java.io.File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
             if (!configFile.exists()) return null
             val json = org.json.JSONObject(configFile.readText())
             json.optJSONObject("gateway")
@@ -399,7 +399,7 @@ class GatewayWsClient(
      * @return stale creds를 삭제했으면 true
      */
     fun purgeStaleWhatsAppCredsIfNeeded(force: Boolean = false): Boolean {
-        val rootfs = prootManager.rootfsDir ?: return false
+        val rootfs = prorootManager.rootfsDir ?: return false
         val credsRoot = File(rootfs, "root/.openclaw/credentials/whatsapp")
         val defaultCredsFile = File(credsRoot, "default/creds.json")
         if (!defaultCredsFile.exists()) return false
@@ -758,7 +758,7 @@ class GatewayWsClient(
     private fun readConfigEnvVarNames(): Set<String> {
         val regex = Regex("""\$\{([A-Za-z_][A-Za-z0-9_]*)[^}]*\}""")
         val envVars = linkedSetOf<String>()
-        val openclawDir = File(prootManager.rootfsDir, "root/.openclaw")
+        val openclawDir = File(prorootManager.rootfsDir, "root/.openclaw")
         if (!openclawDir.exists()) return envVars
 
         val candidateFiles = linkedSetOf<File>().apply {
@@ -849,7 +849,7 @@ class GatewayWsClient(
     }
 
     private fun ensureNodeCompatPatchFile(): Boolean {
-        val patchFile = File(prootManager.rootfsDir, "root/.openclaw-patch.js")
+        val patchFile = File(prorootManager.rootfsDir, "root/.openclaw-patch.js")
         if (patchFile.exists() && patchFile.length() > 0) return true
 
         val script = buildString {
@@ -887,9 +887,9 @@ class GatewayWsClient(
     private suspend fun executeWithResultCancellable(
         command: String,
         timeoutMs: Long,
-    ): ProotManager.CommandResult? = withContext(Dispatchers.IO) {
-        val cmd = prootManager.buildProotCommand(command)
-        val env = prootManager.buildEnvironment(
+    ): ProrootManager.CommandResult? = withContext(Dispatchers.IO) {
+        val cmd = prorootManager.buildProrootCommand(command)
+        val env = prorootManager.buildEnvironment(
             mapOf(
                 "HOME" to "/root",
                 "PATH" to "/usr/local/bin:/usr/bin:/bin",
@@ -941,7 +941,7 @@ class GatewayWsClient(
                 coroutineContext.ensureActive()
 
                 if (process.waitFor(200, TimeUnit.MILLISECONDS)) {
-                    return@withContext ProotManager.CommandResult(
+                    return@withContext ProrootManager.CommandResult(
                         exitCode = process.exitValue(),
                         output = readCapturedOutput(),
                         timedOut = false,
@@ -952,7 +952,7 @@ class GatewayWsClient(
                 if (elapsedMs >= timeoutMs) {
                     process.destroyForcibly()
                     process.waitFor(1000, TimeUnit.MILLISECONDS)
-                    return@withContext ProotManager.CommandResult(
+                    return@withContext ProrootManager.CommandResult(
                         exitCode = -1,
                         output = readCapturedOutput(),
                         timedOut = true,

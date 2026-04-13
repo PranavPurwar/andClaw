@@ -207,10 +207,15 @@ class GatewayWatchdogReceiver : BroadcastReceiver() {
                     (processManager == null && prefs.getGatewaySurvivorMetadata()?.startupAttemptActive == true)
                 val previousRunningUnhealthyFailures = runningUnhealthyFailures.get()
                 val runningHealthy = if (status == GatewayStatus.RUNNING) {
-                    // 프로세스 존재 + 포트 리스닝만 확인 (HTTP 요청 없음).
-                    // proot 환경에서 AI 처리 중 이벤트 루프 포화로 HTTP 응답이
-                    // 지연되어 오탐 재시작하는 문제를 방지한다.
-                    processManager?.probeGatewayHealthLightweight() != false
+                    val healthy = processManager?.probeGatewayHealth(timeoutMs = HEALTH_PROBE_TIMEOUT_MS) == true
+                    // health probe 중 상태가 변했으면 갱신
+                    gatewayState = processManager?.gatewayState?.value ?: gatewayState
+                    status = gatewayState?.status ?: status
+                    if (status != GatewayStatus.RUNNING) {
+                        true
+                    } else {
+                        healthy
+                    }
                 } else {
                     true
                 }

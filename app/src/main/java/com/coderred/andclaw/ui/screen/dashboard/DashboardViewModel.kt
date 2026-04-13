@@ -21,10 +21,10 @@ import com.coderred.andclaw.data.SessionLogEntry
 import com.coderred.andclaw.service.GatewayService
 import com.coderred.andclaw.data.OpenRouterModel
 import com.coderred.andclaw.data.parseOpenRouterModels
-import com.coderred.andclaw.proot.BundleUpdateFailureState
-import com.coderred.andclaw.proot.BundleUpdateOutcome
-import com.coderred.andclaw.proot.GatewayWsClient
-import com.coderred.andclaw.proot.WhatsAppLoginCoordinator
+import com.coderred.andclaw.proroot.BundleUpdateFailureState
+import com.coderred.andclaw.proroot.BundleUpdateOutcome
+import com.coderred.andclaw.proroot.GatewayWsClient
+import com.coderred.andclaw.proroot.WhatsAppLoginCoordinator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -200,7 +200,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun openDashboard(context: Context) {
         viewModelScope.launch {
-            val configFile = java.io.File(app.prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+            val configFile = java.io.File(app.prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
             val url = withContext(Dispatchers.IO) {
                 resolveDashboardUrl(
                     readToken = { readGatewayAuthTokenFromConfig(configFile) },
@@ -419,7 +419,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         whatsappQrJob = viewModelScope.launch {
             val appContext = getApplication<Application>().applicationContext
             try {
-                var client = GatewayWsClient(app.prootManager, app.processManager.gatewayUsesTls)
+                var client = GatewayWsClient(app.prorootManager, app.processManager.gatewayUsesTls)
                 wsClient = client
                 // WebSocket 연결을 먼저 수립하여 이후 RPC 호출을 빠르게 한다.
                 withContext(Dispatchers.IO) { client.connect(openTimeoutMs = 5_000L, handshakeTimeoutMs = 5_000L) }
@@ -451,7 +451,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             return@launch
                         }
                         client.close()
-                        client = GatewayWsClient(app.prootManager, app.processManager.gatewayUsesTls)
+                        client = GatewayWsClient(app.prorootManager, app.processManager.gatewayUsesTls)
                         wsClient = client
                     }
                 } else {
@@ -472,7 +472,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                             return@launch
                         }
                         client.close()
-                        client = GatewayWsClient(app.prootManager, app.processManager.gatewayUsesTls)
+                        client = GatewayWsClient(app.prorootManager, app.processManager.gatewayUsesTls)
                         wsClient = client
                     }
                 }

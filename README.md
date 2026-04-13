@@ -1,7 +1,7 @@
 # andClaw
 
 andClaw turns an Android phone into an on-device AI gateway host.
-It runs OpenClaw inside a `proot` Ubuntu arm64 environment and provides a Jetpack Compose UI for setup, onboarding, pairing, and runtime control.
+It runs OpenClaw inside a `proroot` Ubuntu arm64 environment and provides a Jetpack Compose UI for setup, onboarding, pairing, and runtime control.
 
 Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 
@@ -26,7 +26,7 @@ Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 ## Project Layout
 
 - `app/` - Android app module (Kotlin + Jetpack Compose)
-- `app/src/main/java/com/coderred/andclaw/` - app code by feature area (`ui/`, `data/`, `proot/`, `service/`, `receiver/`, `auth/`)
+- `app/src/main/java/com/coderred/andclaw/` - app code by feature area (`ui/`, `data/`, `proroot/`, `service/`, `receiver/`, `auth/`)
 - `app/src/test/` - JVM unit tests
 - `app/src/androidTest/` - instrumentation tests
 - `install_time_assets/` - Play Asset Delivery install-time asset pack
@@ -71,13 +71,6 @@ Artifacts:
 Google Play requires 16KB page-size compatibility for Android 15+ targets. `scripts/setup-assets.sh` verifies bundled native binaries before packaging.
 
 - `scripts/setup-assets.sh` checks `app/src/main/jniLibs/arm64-v8a/*.so` LOAD segment alignments.
-- If `libproot-loader32.so` is missing or still 4KB-aligned, it auto-builds a 16KB-compatible replacement from `termux/proot` source via Docker.
-
-Manual `loader32` rebuild only:
-
-```bash
-./scripts/build-proot-loader32-16kb.sh
-```
 
 ## Release Notes
 

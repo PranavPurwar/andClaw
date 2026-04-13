@@ -46,7 +46,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.compose.rememberNavController
 import com.coderred.andclaw.auth.OpenRouterAuth
-import com.coderred.andclaw.proot.BundleUpdateOutcome
+import com.coderred.andclaw.proroot.BundleUpdateOutcome
 import com.coderred.andclaw.data.GatewayStatus
 import com.coderred.andclaw.data.SetupStep
 import com.coderred.andclaw.ui.navigation.AndClawNavGraph
@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
                         .collectAsState(initial = null)
 
                     if (isSetupCompleteRaw == null || isOnboardingCompleteRaw == null) {
-                        startupBundleUpdateScreen(step = SetupStep.CHECKING_PROOT)
+                        startupBundleUpdateScreen(step = SetupStep.CHECKING_PROROOT)
                         return@Surface
                     }
 
@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     var startupUpdateStep by remember(isSetupComplete) {
-                        mutableStateOf(SetupStep.CHECKING_PROOT)
+                        mutableStateOf(SetupStep.CHECKING_PROROOT)
                     }
                     var hasCheckedOpenClawUpdatePrompt by remember(isSetupComplete, isOnboardingComplete) {
                         mutableStateOf(false)
@@ -281,9 +281,9 @@ class MainActivity : ComponentActivity() {
 
                     if (isSetupComplete && startupUpdateStatus != StartupBundleUpdateStatus.DONE) {
                         val screenStep = when (startupUpdateStatus) {
-                            StartupBundleUpdateStatus.CHECKING -> SetupStep.CHECKING_PROOT
+                            StartupBundleUpdateStatus.CHECKING -> SetupStep.CHECKING_PROROOT
                             StartupBundleUpdateStatus.UPDATING -> startupUpdateStep
-                            StartupBundleUpdateStatus.DONE -> SetupStep.CHECKING_PROOT
+                            StartupBundleUpdateStatus.DONE -> SetupStep.CHECKING_PROROOT
                         }
                         val screenProgress = if (startupUpdateStatus == StartupBundleUpdateStatus.UPDATING) {
                             setupState.progress

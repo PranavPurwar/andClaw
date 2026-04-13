@@ -21,8 +21,8 @@ import com.coderred.andclaw.data.GatewaySurvivorMetadata
 import com.coderred.andclaw.data.GatewayStatus
 import com.coderred.andclaw.data.PairingRequest
 import com.coderred.andclaw.data.PreferencesManager
-import com.coderred.andclaw.proot.BundleUpdateOutcome
-import com.coderred.andclaw.proot.ProcessManager
+import com.coderred.andclaw.proroot.BundleUpdateOutcome
+import com.coderred.andclaw.proroot.ProcessManager
 import com.coderred.andclaw.receiver.GatewayWatchdogReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.sync.Mutex
@@ -75,15 +76,18 @@ class GatewayService : Service() {
         const val ACTION_STOP_FOR_MISSING_MODEL = "com.coderred.andclaw.action.STOP_FOR_MISSING_MODEL"
         const val ACTION_RESTART = "com.coderred.andclaw.action.RESTART"
         const val ACTION_ATTACH = "com.coderred.andclaw.action.ATTACH"
+        const val ACTION_VALIDATE_RUNTIME = "com.coderred.andclaw.action.VALIDATE_RUNTIME"
         const val ACTION_WHATSAPP_LOGIN_GUARD_START = "com.coderred.andclaw.action.WHATSAPP_LOGIN_GUARD_START"
         const val ACTION_WHATSAPP_LOGIN_GUARD_STOP = "com.coderred.andclaw.action.WHATSAPP_LOGIN_GUARD_STOP"
         private const val EXTRA_FROM_WATCHDOG = "from_watchdog"
         private const val EXTRA_USER_INITIATED = "user_initiated"
         private const val EXTRA_TRIGGER_SOURCE = "trigger_source"
         private const val EXTRA_WAKE_LOCK_TIMEOUT_MS = "wake_lock_timeout_ms"
+        const val EXTRA_VALIDATE_REQUIRE_PATCHED_NODE_OPTIONS = "require_patched_node_options"
         private const val UNKNOWN_TRIGGER_SOURCE = "unknown"
         private const val STICKY_RECOVERY_TRIGGER_SOURCE = "system:sticky_recovery"
         private const val DIAGNOSTIC_SOURCE_MAX_LENGTH = 80
+        const val VALIDATION_RESULT_FILE_NAME = "gateway-runtime-validation.json"
 
         private var _instance: GatewayService? = null
         private var retainedProcessManager: ProcessManager? = null
@@ -502,6 +506,15 @@ class GatewayService : Service() {
             releaseWhatsAppLoginWakeLock()
             return START_STICKY
         }
+        if (action == ACTION_VALIDATE_RUNTIME) {
+            val requirePatchedNodeOptions = intent.getBooleanExtra(EXTRA_VALIDATE_REQUIRE_PATCHED_NODE_OPTIONS, false)
+            serviceScope.launch {
+                withContext(Dispatchers.IO) {
+                    handleRuntimeValidation(startId, requirePatchedNodeOptions)
+                }
+            }
+            return START_NOT_STICKY
+        }
         if (action == null) {
             pm.appendGatewayDiagnosticLog(
                 buildDiagnosticLogLine(
@@ -667,6 +680,36 @@ class GatewayService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private suspend fun handleRuntimeValidation(startId: Int, requirePatchedNodeOptions: Boolean) {
+        val app = application as AndClawApp
+        val resultFile = File(filesDir, VALIDATION_RESULT_FILE_NAME)
+        resultFile.delete()
+
+        val result = runCatching {
+            app.setupManager.runOpenClawValidationInCurrentProcess(requirePatchedNodeOptions)
+        }.fold(
+            onSuccess = { commandResult ->
+                JSONObject().apply {
+                    put("exitCode", commandResult?.exitCode ?: JSONObject.NULL)
+                    put("output", commandResult?.output ?: JSONObject.NULL)
+                    put("timedOut", commandResult?.timedOut ?: false)
+                    put("error", JSONObject.NULL)
+                }
+            },
+            onFailure = { error ->
+                JSONObject().apply {
+                    put("exitCode", JSONObject.NULL)
+                    put("output", JSONObject.NULL)
+                    put("timedOut", false)
+                    put("error", error.message ?: error.javaClass.simpleName)
+                }
+            },
+        )
+
+        resultFile.writeText(result.toString())
+        stopServiceForeground(startId)
+    }
 
     override fun onDestroy() {
         stopChargingWakeLockController()
@@ -1007,6 +1050,7 @@ class GatewayService : Service() {
                 } else {
                     null
                 },
+                probePhase = pm.gatewayProbePhase(isRestart = false),
             )
 
             val finalStatus = awaitGatewayStartupTerminalState(START_TERMINAL_WAIT_TIMEOUT_MS)
@@ -1102,6 +1146,7 @@ class GatewayService : Service() {
                 launchConfig.memorySearchEnabled,
                 launchConfig.memorySearchProvider,
                 launchConfig.memorySearchApiKey,
+                probePhase = pm.gatewayProbePhase(isRestart = true),
             )
             val finalStatus = awaitGatewayStartupTerminalState(RESTART_WAKE_LOCK_TIMEOUT_MS)
             if (!isActionCurrent(actionToken)) return@withTimedWakeLock

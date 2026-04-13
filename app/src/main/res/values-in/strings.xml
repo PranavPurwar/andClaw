@@ -14,8 +14,8 @@
     <string name="setup_subtitle">Siapkan OpenClaw di Android</string>
     <string name="setup_storage">Penyimpanan</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">Siap</string>
-    <string name="setup_proot_unavailable">Tidak tersedia</string>
+    <string name="setup_proroot_ready">Siap</string>
+    <string name="setup_proroot_unavailable">Tidak tersedia</string>
     <string name="setup_description">Semuanya sudah disertakan. Cukup ketuk tombol di bawah.</string>
     <string name="setup_steps_detail">1. Siapkan lingkungan\n2. Instal komponen\n3. Atur mesin AI\n4. Konfigurasi akhir</string>
     <string name="setup_estimate">Membutuhkan 1–3 menit</string>
@@ -24,9 +24,9 @@
     <string name="setup_btn_retry">Coba Lagi</string>
     <string name="setup_error_default">Terjadi kesalahan selama pengaturan</string>
     <string name="setup_err_storage">Penyimpanan tidak cukup (minimal 1,5 GB diperlukan)</string>
-    <string name="setup_err_proot">Biner proot tidak disertakan dalam APK.\nJalankan scripts/setup-assets.sh dan bangun ulang.</string>
+    <string name="setup_err_proroot">Biner proroot tidak disertakan dalam APK.\nJalankan scripts/setup-assets.sh dan bangun ulang.</string>
     <string name="step_idle">Menganggur</string>
-    <string name="step_checking_proot">Menyiapkan…</string>
+    <string name="step_checking_proroot">Menyiapkan…</string>
     <string name="step_extracting_rootfs">Menyiapkan lingkungan…</string>
     <string name="step_configuring_rootfs">Mengonfigurasi…</string>
     <string name="step_extracting_nodejs">Memasang komponen…</string>

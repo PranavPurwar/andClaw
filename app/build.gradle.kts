@@ -37,8 +37,8 @@ android {
         applicationId = "com.coderred.andclaw"
         minSdk = 26
         targetSdk = 35
-        versionCode = 191
-        versionName = "1.2.68"
+        versionCode = 216
+        versionName = "2.0.16"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -113,7 +113,7 @@ android {
         ignoreAssetsPattern = "!.svn:!.git:!*.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~"
     }
 
-    // proot 바이너리를 nativeLibraryDir에 추출하기 위해 필수
+    // proroot 바이너리를 nativeLibraryDir에 추출하기 위해 필수
     packaging {
         jniLibs {
             useLegacyPackaging = true

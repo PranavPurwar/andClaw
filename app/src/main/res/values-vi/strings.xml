@@ -14,8 +14,8 @@
     <string name="setup_subtitle">Thiết lập OpenClaw trên Android</string>
     <string name="setup_storage">Bộ nhớ</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">Sẵn sàng</string>
-    <string name="setup_proot_unavailable">Không khả dụng</string>
+    <string name="setup_proroot_ready">Sẵn sàng</string>
+    <string name="setup_proroot_unavailable">Không khả dụng</string>
     <string name="setup_description">Mọi thứ đã được bao gồm. Chỉ cần nhấn nút bên dưới.</string>
     <string name="setup_steps_detail">1. Chuẩn bị môi trường\n2. Cài đặt các thành phần\n3. Thiết lập công cụ AI\n4. Cấu hình cuối cùng</string>
     <string name="setup_estimate">Mất 1–3 phút</string>
@@ -24,9 +24,9 @@
     <string name="setup_btn_retry">Thử lại</string>
     <string name="setup_error_default">Đã xảy ra lỗi trong quá trình cài đặt</string>
     <string name="setup_err_storage">Bộ nhớ không đủ (yêu cầu tối thiểu 1,5 GB)</string>
-    <string name="setup_err_proot">Tệp nhị phân proot không có trong APK.\nChạy scripts/setup-assets.sh và xây dựng lại.</string>
+    <string name="setup_err_proroot">Tệp nhị phân proroot không có trong APK.\nChạy scripts/setup-assets.sh và xây dựng lại.</string>
     <string name="step_idle">Chế độ chờ</string>
-    <string name="step_checking_proot">Đang chuẩn bị…</string>
+    <string name="step_checking_proroot">Đang chuẩn bị…</string>
     <string name="step_extracting_rootfs">Đang thiết lập môi trường…</string>
     <string name="step_configuring_rootfs">Đang cấu hình…</string>
     <string name="step_extracting_nodejs">Đang cài đặt các thành phần…</string>

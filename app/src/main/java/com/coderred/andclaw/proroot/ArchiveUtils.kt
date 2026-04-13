@@ -1,4 +1,4 @@
-package com.coderred.andclaw.proot
+package com.coderred.andclaw.proroot
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -6,15 +6,19 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import android.util.Log
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.coroutines.coroutineContext
 
 object ArchiveUtils {
+
+    private const val TAG = "ArchiveUtils"
 
     /**
      * tar.gz 파일을 지정 디렉토리에 압축 해제한다.
@@ -67,11 +71,21 @@ object ArchiveUtils {
 
                     when {
                         entry.isDirectory -> {
-                            outFile.mkdirs()
+                            if (!outFile.exists()) {
+                                val created = outFile.mkdirs()
+                                if (!created && !outFile.isDirectory) {
+                                    // 경로 충돌: 같은 이름의 파일이 디렉토리 생성을 막는 경우 제거 후 재시도
+                                    if (outFile.exists()) {
+                                        Log.w(TAG, "Path conflict: ${outFile.path} exists as file, removing for directory")
+                                        outFile.delete()
+                                        outFile.mkdirs()
+                                    }
+                                }
+                            }
                         }
 
                         entry.isSymbolicLink -> {
-                            outFile.parentFile?.mkdirs()
+                            ensureParentDir(outFile)
                             // 기존 파일 삭제 후 심볼릭 링크 생성
                             outFile.delete()
                             try {
@@ -85,7 +99,7 @@ object ArchiveUtils {
                         }
 
                         entry.isLink -> {
-                            outFile.parentFile?.mkdirs()
+                            ensureParentDir(outFile)
                             val normalizedLinkName = entry.linkName
                                 .removePrefix("./")
                                 .removePrefix("/")
@@ -109,7 +123,11 @@ object ArchiveUtils {
                         }
 
                         else -> {
-                            outFile.parentFile?.mkdirs()
+                            ensureParentDir(outFile)
+                            // 기존 파일/심볼릭 링크가 있으면 삭제 (덮어쓰기 보장)
+                            if (outFile.exists() || Files.isSymbolicLink(outFile.toPath())) {
+                                outFile.delete()
+                            }
                             FileOutputStream(outFile).use { output ->
                                 val buffer = ByteArray(32768)
                                 var len: Int
@@ -135,6 +153,61 @@ object ArchiveUtils {
 
         onProgress(entryCount)
         entryCount
+    }
+
+    /**
+     * 부모 디렉토리가 존재하는지 확인하고, 없으면 생성한다.
+     * mkdirs() 실패 시 경로 충돌을 해소하고, 그래도 실패하면 진단 정보와 함께 IOException을 던진다.
+     */
+    private fun ensureParentDir(outFile: File) {
+        val parent = outFile.parentFile ?: return
+        if (parent.isDirectory) return
+
+        if (!parent.mkdirs() && !parent.isDirectory) {
+            // 경로 충돌: 부모 경로에 파일이 디렉토리 대신 존재할 수 있다
+            val conflicting = findPathConflict(parent)
+            if (conflicting != null) {
+                Log.w(TAG, "Path conflict at ${conflicting.path} (isFile=${conflicting.isFile}, " +
+                    "isSymlink=${Files.isSymbolicLink(conflicting.toPath())}), removing for directory")
+                conflicting.delete()
+                parent.mkdirs()
+            }
+
+            if (!parent.isDirectory) {
+                val diag = buildString {
+                    append("Cannot create parent directory: ${parent.path}")
+                    append(" (exists=${parent.exists()}, isFile=${parent.isFile}")
+                    var p: File? = parent
+                    while (p != null && !p.exists()) p = p.parentFile
+                    if (p != null && p != parent) {
+                        append(", firstExisting=${p.path}, isDir=${p.isDirectory}")
+                    }
+                    val usable = parent.parentFile?.usableSpace ?: -1
+                    if (usable >= 0) append(", usableSpace=${usable / 1024 / 1024}MB")
+                    append(")")
+                }
+                Log.e(TAG, diag)
+                throw IOException(diag)
+            }
+        }
+    }
+
+    /**
+     * 경로에서 디렉토리가 아닌 첫 번째 컴포넌트를 찾는다.
+     * 예: /a/b/c 에서 b가 파일이면 b를 반환.
+     */
+    private fun findPathConflict(dir: File): File? {
+        val parts = mutableListOf<File>()
+        var current: File? = dir
+        while (current != null) {
+            parts.add(current)
+            current = current.parentFile
+        }
+        parts.reverse()
+        for (part in parts) {
+            if (part.exists() && !part.isDirectory) return part
+        }
+        return null
     }
 
     private fun setFilePermissions(file: File, mode: Int) {

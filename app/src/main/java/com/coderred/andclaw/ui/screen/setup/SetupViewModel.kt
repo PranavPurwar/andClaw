@@ -14,22 +14,22 @@ class SetupViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as AndClawApp
     private val setupManager = app.setupManager
     private val prefs = app.preferencesManager
-    private val prootManager = app.prootManager
+    private val prorootManager = app.prorootManager
 
     val state: StateFlow<SetupState> = setupManager.state
         .stateIn(viewModelScope, SharingStarted.Eagerly, SetupState())
 
     val availableStorageMb: Long
-        get() = prootManager.getAvailableStorageMb()
+        get() = prorootManager.getAvailableStorageMb()
 
     val hasEnoughStorage: Boolean
-        get() = prootManager.hasEnoughStorage()
+        get() = prorootManager.hasEnoughStorage()
 
-    val isProotAvailable: Boolean
-        get() = prootManager.isProotAvailable
+    val isProrootAvailable: Boolean
+        get() = prorootManager.isProrootAvailable
 
     val isAlreadySetup: Boolean
-        get() = prootManager.isFullySetup
+        get() = prorootManager.isFullySetup
 
     fun startSetup() {
         viewModelScope.launch {

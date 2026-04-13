@@ -1,4 +1,4 @@
-package com.coderred.andclaw.proot
+package com.coderred.andclaw.proroot
 
 import android.os.Build
 import android.os.FileObserver
@@ -38,8 +38,9 @@ internal fun githubCopilotAuthEnv(env: Map<String, String> = System.getenv()): M
         }
     }
 
-private val ANDROID_CHROMIUM_EXTRA_ARGS = listOf("--no-zygote", "--single-process")
+private val ANDROID_CHROMIUM_EXTRA_ARGS = listOf("--no-zygote", "--no-sandbox", "--single-process", "--disable-dev-shm-usage", "--disable-features=BackForwardCache")
 private const val LEGACY_CHROMIUM_WRAPPER_NAME = "chromium-proot-wrapper.sh"
+private const val BROWSER_PREWARM_USER_DATA_DIR = "/tmp/.chromium-prewarm"
 
 internal fun parseListeningSocketInodes(procNetContent: String, port: Int): Set<String> {
     if (port !in 1..65535) return emptySet()
@@ -278,7 +279,7 @@ console.log(JSON.stringify({
  * - 프로세스 상태를 StateFlow 로 실시간 노출
  */
 class ProcessManager(
-    private val prootManager: ProotManager,
+    private val prorootManager: ProrootManager,
 ) {
     data class ModelSelectionEntry(
         val id: String,
@@ -292,6 +293,7 @@ class ProcessManager(
         private const val TAG = "ProcessManager"
         private const val GATEWAY_PORT = 18789
         private const val DEFAULT_MEMORY_SEARCH_PROVIDER = "auto"
+        private const val OPENCLAW_PATCH_VERSION = "openclaw-patch-v5-dns-no-fallback"
         private val REMOTE_MEMORY_SEARCH_PROVIDERS = setOf("auto", "openai", "gemini", "voyage", "mistral")
 
         private fun normalizeMemorySearchProvider(raw: String): String {
@@ -309,6 +311,9 @@ class ProcessManager(
     }
 
     private val openClawPairingDenyScript: String by lazy { buildOpenClawPairingDenyScript() }
+
+    internal fun gatewayProbePhase(isRestart: Boolean): String =
+        if (isRestart) "gateway-restart" else "gateway-start"
 
     private val _gatewayState = MutableStateFlow(GatewayState())
     val gatewayState: StateFlow<GatewayState> = _gatewayState.asStateFlow()
@@ -342,6 +347,9 @@ class ProcessManager(
     @Volatile
     var gatewayUsesTls: Boolean = false
         private set
+
+    /** 미리 띄워놓은 headless_shell 프로세스. 게이트웨이 ready 시 시작, stop 시 정리. */
+    private var chromiumPreWarmProcess: Process? = null
     private var lastMemorySearchApiKey: String = ""
     private var startupAttemptStartedElapsedMs: Long? = null
     private val openClawConfigLock = Any()
@@ -452,7 +460,7 @@ class ProcessManager(
     suspend fun probeGatewayHealthDirect(timeoutMs: Long = 8_000L): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                GatewayWsClient(prootManager, gatewayUsesTls).probeGatewayHealth(timeoutMs)
+                GatewayWsClient(prorootManager, gatewayUsesTls).probeGatewayHealth(timeoutMs)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -487,6 +495,7 @@ class ProcessManager(
         memorySearchProvider: String = DEFAULT_MEMORY_SEARCH_PROVIDER,
         memorySearchApiKey: String = "",
         survivorMetadata: GatewaySurvivorMetadata? = null,
+        probePhase: String = "gateway-start",
     ) {
         val status = _gatewayState.value.status
         if (status == GatewayStatus.RUNNING || status == GatewayStatus.STARTING) return
@@ -537,6 +546,8 @@ class ProcessManager(
                 ensurePatchFile()
                 // .profile에 누락된 환경변수 보충 + 캐시 디렉토리 보장 (기존 사용자 대응)
                 ensureProfileEnvVars()
+                invalidateCompileCacheIfVersionChanged()
+                cleanupStalePidCacheDirs()
                 ensureStartupAttemptStillValid()
 
                 val survivorPidAlive = survivorMetadata?.pid?.let { pid ->
@@ -598,7 +609,7 @@ class ProcessManager(
                 ensureStartupAttemptStillValid()
 
                 // proot 명령어 구성
-                val cmd = prootManager.buildGatewayCommand()
+                val cmd = prorootManager.buildGatewayCommand()
 
                 // 환경변수 구성 (API 키 포함)
                 val extraEnv = buildMap {
@@ -660,6 +671,10 @@ class ProcessManager(
                         put("OPENCLAW_VERSION", openclawVersion)
                     }
 
+                    if (probePhase.isNotBlank()) {
+                        put("PROROOT_PROBE_PHASE", probePhase)
+                    }
+
                     // 채널 봇 토큰
                     if (channelConfig.telegramEnabled && channelConfig.telegramBotToken.isNotBlank()) {
                         put("TELEGRAM_BOT_TOKEN", channelConfig.telegramBotToken)
@@ -668,7 +683,7 @@ class ProcessManager(
                         put("DISCORD_BOT_TOKEN", channelConfig.discordBotToken)
                     }
                 }
-                val env = prootManager.buildEnvironment(extraEnv)
+                val env = prorootManager.buildEnvironment(extraEnv)
 
                 // 프로세스 시작
                 val pb = ProcessBuilder(cmd).redirectErrorStream(true)
@@ -678,6 +693,7 @@ class ProcessManager(
 
                 ensureStartupAttemptStillValid()
                 launchedProcess = pb.start()
+                runCatching { launchedProcess.outputStream.close() }
                 if (!isStartupAttemptGenerationValid(startupGeneration)) {
                     runCatching { launchedProcess.destroyForcibly() }
                     runCatching { launchedProcess.waitFor(2, TimeUnit.SECONDS) }
@@ -771,7 +787,91 @@ class ProcessManager(
     /**
      * 게이트웨이 프로세스를 중지한다.
      */
+    /**
+     * 게이트웨이 시작과 동시에 headless_shell을 랜덤 포트로 미리 띄운다.
+     * 목적: 공유 라이브러리(265MB headless_shell + ICU 등)를 OS 페이지 캐시에 올려놓는 것.
+     * OpenClaw 브라우저 확장이 CDP 포트 18800으로 자체 Chrome을 시작할 때,
+     * 라이브러리가 이미 캐시에 있어 8초 내에 CDP ready가 가능해진다.
+     * "browser control service ready" 감지 시 이 프로세스를 kill하여 자원을 반환한다.
+     */
+    private fun preWarmChromium() {
+        if (chromiumPreWarmProcess?.isAlive == true) return
+
+        val chromiumPath = prorootManager.detectChromiumExecutableProotPath()
+        if (chromiumPath == null) {
+            addLog("[andClaw] Chromium pre-warm skipped: headless_shell not found")
+            return
+        }
+
+        try {
+            // headless_shell을 포트 없이 실행 — 라이브러리(265MB)를 OS 페이지 캐시에 올리는 게 목적.
+            // 포트를 안 쓰므로 OpenClaw과 충돌 없음. gateway ready 후 kill.
+            val cmd = prorootManager.buildProrootArgvCommand(
+                listOf(chromiumPath) + ANDROID_CHROMIUM_EXTRA_ARGS + listOf(
+                    "--user-data-dir=$BROWSER_PREWARM_USER_DATA_DIR",
+                    "--disable-gpu", "--disable-software-rasterizer",
+                    "--no-sandbox", "--headless=new",
+                )
+            )
+            val env = prorootManager.buildEnvironment(mapOf(
+                "HOME" to "/root",
+                "PATH" to "/usr/local/bin:/usr/bin:/bin",
+                "UV_USE_IO_URING" to "0",
+            ))
+            val pb = ProcessBuilder(cmd).redirectErrorStream(true)
+            pb.environment().putAll(env)
+            chromiumPreWarmProcess = pb.start()
+            runCatching { chromiumPreWarmProcess?.outputStream?.close() }
+            // stderr/stdout drain (pipe 버퍼 포화 방지)
+            Thread {
+                runCatching {
+                    chromiumPreWarmProcess?.inputStream?.use { it.readBytes() }
+                }
+            }.apply { isDaemon = true }.start()
+            addLog("[andClaw] Chromium pre-warm started (library cache warming)")
+        } catch (e: Exception) {
+            addLog("[andClaw] Chromium pre-warm failed: ${e.message}")
+        }
+    }
+
+    private fun stopPreWarmedChromium() {
+        chromiumPreWarmProcess?.let { proc ->
+            if (proc.isAlive) {
+                proc.destroyForcibly()
+                runCatching { proc.waitFor(2, TimeUnit.SECONDS) }
+            }
+            // proroot-bin fork 자식(headless_shell)이 orphan으로 남을 수 있다.
+            // pre-warm 전용 user-data-dir로 식별하여 kill한다.
+            killProcessesByCommandPattern("chromium-prewarm")
+            addLog("[andClaw] Chromium pre-warm stopped (libraries cached)")
+        }
+        chromiumPreWarmProcess = null
+    }
+
+    /** cmdline에 pattern이 포함된 우리 앱 프로세스를 모두 kill한다. */
+    private fun killProcessesByCommandPattern(pattern: String) {
+        val myUid = android.os.Process.myUid()
+        val procDir = java.io.File("/proc")
+        procDir.listFiles()?.forEach { dir ->
+            val pid = dir.name.toIntOrNull() ?: return@forEach
+            runCatching {
+                val status = java.io.File(dir, "status").readText()
+                val uid = status.lineSequence()
+                    .firstOrNull { it.startsWith("Uid:") }
+                    ?.split("\\s+".toRegex())?.getOrNull(1)?.toIntOrNull()
+                if (uid != myUid) return@forEach
+
+                val cmdline = java.io.File(dir, "cmdline").readBytes()
+                    .toString(Charsets.UTF_8).replace('\u0000', ' ')
+                if (cmdline.contains(pattern)) {
+                    android.os.Process.killProcess(pid)
+                }
+            }
+        }
+    }
+
     fun stop() {
+        stopPreWarmedChromium()
         clearStartupAttempt()
         invalidateStartupAttemptGeneration()
         scope?.cancel()
@@ -846,6 +946,7 @@ class ProcessManager(
         memorySearchProvider: String = DEFAULT_MEMORY_SEARCH_PROVIDER,
         memorySearchApiKey: String = "",
         survivorMetadata: GatewaySurvivorMetadata? = null,
+        probePhase: String = "gateway-restart",
     ) {
         markStartupAttemptStarted()
         stop()
@@ -868,6 +969,7 @@ class ProcessManager(
             memorySearchProvider = memorySearchProvider,
             memorySearchApiKey = memorySearchApiKey,
             survivorMetadata = survivorMetadata,
+            probePhase = probePhase,
         )
     }
 
@@ -886,7 +988,7 @@ class ProcessManager(
      * sessions/ 디렉토리에서 가장 최신 JSONL 파일을 파싱한다.
      */
     fun getSessionLogEntries(): List<SessionLogEntry> {
-        val sessionsDir = File(prootManager.rootfsDir, "root/.openclaw/agents/main/sessions")
+        val sessionsDir = File(prorootManager.rootfsDir, "root/.openclaw/agents/main/sessions")
         if (!sessionsDir.exists()) return emptyList()
 
         try {
@@ -1008,7 +1110,7 @@ class ProcessManager(
         memorySearchProvider: String? = null,
         memorySearchApiKey: String? = null,
     ) {
-        val configFile = File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+        val configFile = File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
 
         synchronized(openClawConfigLock) {
             try {
@@ -1320,7 +1422,8 @@ class ProcessManager(
                 }
             }
 
-            val chromePath = prootManager.detectChromiumExecutableProotPath()
+            val wrapperPath = prorootManager.ensureChromiumWrapper(ANDROID_CHROMIUM_EXTRA_ARGS)
+            val chromePath = wrapperPath ?: prorootManager.detectChromiumExecutableProotPath()
 
             // 브라우저 설정
             val browserObj = json.optJSONObject("browser")
@@ -1331,7 +1434,6 @@ class ProcessManager(
                     put("defaultProfile", "openclaw")
                     if (chromePath != null) {
                         put("executablePath", chromePath)
-                        put("extraArgs", JSONArray(ANDROID_CHROMIUM_EXTRA_ARGS))
                     }
                 })
                 addLog("[andClaw] Browser config added (executablePath=$chromePath)")
@@ -1518,7 +1620,7 @@ class ProcessManager(
                 val validPaths = org.json.JSONArray()
                 for (i in 0 until loadPaths.length()) {
                     val p = loadPaths.optString(i, "")
-                    if (p.isNotBlank() && File(prootManager.rootfsDir, p.removePrefix("/")).exists()) {
+                    if (p.isNotBlank() && File(prorootManager.rootfsDir, p.removePrefix("/")).exists()) {
                         validPaths.put(p)
                     }
                 }
@@ -1546,7 +1648,7 @@ class ProcessManager(
      * openclaw.json에 채널 설정 블록을 기록한다.
      */
     fun ensureChannelConfig(channelConfig: ChannelConfig) {
-        val configFile = File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+        val configFile = File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
 
         synchronized(openClawConfigLock) {
             try {
@@ -1705,7 +1807,7 @@ class ProcessManager(
             ps.waitFor()
 
             for (line in lines) {
-                if (line.contains("openclaw") || line.contains("libproot.so")) {
+                if (line.contains("openclaw") || line.contains("libproroot.so")) {
                     // PID 추출 (ps -ef 형식: UID PID PPID ...)
                     val parts = line.trim().split("\\s+".toRegex())
                     val pid = parts.getOrNull(1)?.toIntOrNull() ?: continue
@@ -1737,7 +1839,7 @@ class ProcessManager(
 
     private fun stopSupervisedGatewayIfRunning() {
         try {
-            val result = prootManager.executeWithResult(
+            val result = prorootManager.executeWithResult(
                 command =
                     "export NODE_OPTIONS='--require /root/.openclaw-patch.js' && " +
                         "openclaw gateway stop >/dev/null 2>&1 || true",
@@ -1864,7 +1966,7 @@ class ProcessManager(
      */
     private fun getBuiltInOpenRouterModelIds(): Set<String> {
         return try {
-            OpenClawModelCatalogReader.loadOpenRouterModelIds(prootManager.rootfsDir)
+            OpenClawModelCatalogReader.loadOpenRouterModelIds(prorootManager.rootfsDir)
         } catch (e: Exception) {
             addLog("[andClaw] Failed to read built-in models: ${e.message}")
             emptySet()
@@ -1973,7 +2075,7 @@ class ProcessManager(
                 provider = "ollama",
                 providerConfig = providerConfig,
             )
-            val configPath = File(prootManager.rootfsDir, "root/.openclaw/openclaw.json")
+            val configPath = File(prorootManager.rootfsDir, "root/.openclaw/openclaw.json")
             val config = if (configPath.exists()) {
                 runCatching { JSONObject(configPath.readText()) }.getOrElse { JSONObject() }
             } else {
@@ -1990,7 +2092,7 @@ class ProcessManager(
     }
 
     private fun modelsJsonFile(): File =
-        File(prootManager.rootfsDir, "root/.openclaw/agents/main/agent/models.json")
+        File(prorootManager.rootfsDir, "root/.openclaw/agents/main/agent/models.json")
 
     private fun readRegisteredCustomModelIdsByProvider(): Map<String, Set<String>> {
         return runCatching {
@@ -2079,17 +2181,24 @@ class ProcessManager(
      * 필요한 디렉토리를 생성한다.
      */
     private fun ensureProfileEnvVars() {
-        val profileFile = File(prootManager.rootfsDir, "root/.profile")
+        val profileFile = File(prorootManager.rootfsDir, "root/.profile")
         if (!profileFile.exists()) return
-        val content = profileFile.readText()
-        // NODE_COMPILE_CACHE 제거 (proot ptrace 오버헤드로 오히려 성능 저하)
-        if (content.contains("NODE_COMPILE_CACHE")) {
-            val cleaned = content.lines()
-                .filterNot { it.contains("NODE_COMPILE_CACHE") }
-                .joinToString("\n")
-            profileFile.writeText(cleaned)
+        var content = profileFile.readText()
+
+        // Migrate: flat NODE_COMPILE_CACHE → per-PID ($$ 버전)
+        // 기존 사용자의 .profile에 /root/.cache/node-compile-cache (flat) 있으면
+        // 프로세스별 디렉토리로 교체 (Bus error 방지)
+        val oldCacheLine = "export NODE_COMPILE_CACHE=/root/.cache/node-compile-cache"
+        val newCacheLine = "export NODE_COMPILE_CACHE=/root/.cache/node-compile-cache/\$\$"
+        if (content.contains(oldCacheLine) && !content.contains("/\$\$")) {
+            content = content.replace(oldCacheLine, newCacheLine)
+            profileFile.writeText(content)
         }
+
         val appends = buildString {
+            if (!content.contains("NODE_COMPILE_CACHE")) {
+                appendLine(newCacheLine)
+            }
             if (!content.contains("OPENCLAW_NO_RESPAWN")) {
                 appendLine("export OPENCLAW_NO_RESPAWN=1")
             }
@@ -2097,18 +2206,53 @@ class ProcessManager(
         if (appends.isNotBlank()) {
             profileFile.appendText(appends)
         }
+        // V8 compile cache 베이스 디렉토리 보장
+        File(prorootManager.rootfsDir, "root/.cache/node-compile-cache").mkdirs()
+    }
+
+    private fun invalidateCompileCacheIfVersionChanged() {
+        val cacheDir = File(prorootManager.rootfsDir, "root/.cache/node-compile-cache")
+        if (!cacheDir.exists()) return
+        val versionFile = File(cacheDir, ".cache-version")
+        if (versionFile.exists() && versionFile.readText().trim() == OPENCLAW_PATCH_VERSION) return
+        addLog("[andClaw] Invalidating Node.js compile cache (version changed)")
+        cacheDir.listFiles()?.forEach { if (it.name != ".cache-version") it.deleteRecursively() }
+        versionFile.writeText(OPENCLAW_PATCH_VERSION)
+    }
+
+    /** Clean up stale per-PID compile cache directories from previous runs. */
+    private fun cleanupStalePidCacheDirs() {
+        val cacheDir = File(prorootManager.rootfsDir, "root/.cache/node-compile-cache")
+        if (!cacheDir.exists()) return
+        val pidDirs = cacheDir.listFiles()?.filter {
+            it.isDirectory && it.name.all { c -> c.isDigit() }
+        } ?: return
+        // Keep only the 2 most recent, delete the rest
+        if (pidDirs.size > 2) {
+            pidDirs.sortedBy { it.lastModified() }
+                .dropLast(2)
+                .forEach {
+                    it.deleteRecursively()
+                    addLog("[andClaw] Cleaned stale compile cache: ${it.name}")
+                }
+        }
     }
 
     private fun ensurePatchFile() {
-        val patchFile = File(prootManager.rootfsDir, "root/.openclaw-patch.js")
+        val patchFile = File(prorootManager.rootfsDir, "root/.openclaw-patch.js")
         val needsUpdate = !patchFile.exists() ||
             !patchFile.readText().contains("uncaughtException") ||
             !patchFile.readText().contains("EAFNOSUPPORT") ||
             !patchFile.readText().contains("openrouter.ai/api/v1/models") ||
+            !patchFile.readText().contains("Module._resolveFilename") ||
+            !patchFile.readText().contains("realpathSync.native") ||
+            !patchFile.readText().contains("dns.setServers") ||
+            patchFile.readText().contains("_origLookup.call") ||
             patchFile.readText().contains("_cpSpawn") ||
             patchFile.readText().contains("handle.sync")
         if (needsUpdate) {
             addLog("[andClaw] Creating Node.js compatibility patch...")
+            patchFile.parentFile?.mkdirs()
             patchFile.writeText(buildString {
                 // Prevent undici TLS null-socket crash (e.g. Telegram fetch fallback)
                 appendLine("process.on('uncaughtException', function(err) {")
@@ -2145,6 +2289,98 @@ class ProcessManager(
                 appendLine("  return _origFetch.apply(this, arguments);")
                 appendLine("};")
                 appendLine()
+                appendLine("const fs = require('fs');")
+                appendLine("const path = require('path');")
+                appendLine("const Module = require('module');")
+                appendLine("const PROROOT_ROOTFS = process.env.PROROOT_ROOTFS || '';")
+                appendLine("const OPENCLAW_GUEST_ROOT = '/usr/local/lib/node_modules/openclaw/';")
+                appendLine("function hostPathFor(p) {")
+                appendLine("  if (typeof p !== 'string' || !p.startsWith('/')) return null;")
+                appendLine("  if (PROROOT_ROOTFS && p.startsWith(PROROOT_ROOTFS + '/')) return p;")
+                appendLine("  if (!PROROOT_ROOTFS) return null;")
+                appendLine("  return path.join(PROROOT_ROOTFS, p.replace(/^\\//, ''));")
+                appendLine("}")
+                appendLine("const _existsSyncNative = fs.existsSync.bind(fs);")
+                appendLine("const _statSyncNative = fs.statSync.bind(fs);")
+                appendLine("const _realpathSyncNative = fs.realpathSync.bind(fs);")
+                appendLine("const _accessSyncNative = fs.accessSync.bind(fs);")
+                appendLine("const _readFileSyncNative = fs.readFileSync.bind(fs);")
+                appendLine("const _readFileNative = fs.readFile.bind(fs);")
+                appendLine("const _openSyncNative = fs.openSync.bind(fs);")
+                appendLine("fs.existsSync = function(p) {")
+                appendLine("  if (_existsSyncNative(p)) return true;")
+                appendLine("  const hp = hostPathFor(p);")
+                appendLine("  return hp ? _existsSyncNative(hp) : false;")
+                appendLine("};")
+                appendLine("fs.statSync = function(p, ...rest) {")
+                appendLine("  try { return _statSyncNative(p, ...rest); } catch (err) {")
+                appendLine("    const hp = hostPathFor(p);")
+                appendLine("    if (hp) return _statSyncNative(hp, ...rest);")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine("const _realpathSyncNativeNative = fs.realpathSync.native;")
+                appendLine("fs.realpathSync = function(p, ...rest) {")
+                appendLine("  try { return _realpathSyncNative(p, ...rest); } catch (err) {")
+                appendLine("    const hp = hostPathFor(p);")
+                appendLine("    if (hp) return hp;")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine("fs.realpathSync.native = _realpathSyncNativeNative;")
+                appendLine("fs.accessSync = function(p, ...rest) {")
+                appendLine("  try { return _accessSyncNative(p, ...rest); } catch (err) {")
+                appendLine("    const hp = hostPathFor(p);")
+                appendLine("    if (hp) return _accessSyncNative(hp, ...rest);")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine("fs.openSync = function(p, ...rest) {")
+                appendLine("  try { return _openSyncNative(p, ...rest); } catch (err) {")
+                appendLine("    const hp = hostPathFor(p);")
+                appendLine("    if (hp) return _openSyncNative(hp, ...rest);")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine("fs.readFileSync = function(p, ...rest) {")
+                appendLine("  try { return _readFileSyncNative(p, ...rest); } catch (err) {")
+                appendLine("    const hp = hostPathFor(p);")
+                appendLine("    if (hp) return _readFileSyncNative(hp, ...rest);")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine("fs.readFile = function(p, ...rest) {")
+                appendLine("  try { return _readFileNative.call(fs, p, ...rest); } catch (err) {")
+                appendLine("    const hp = hostPathFor(p);")
+                appendLine("    if (hp) return _readFileNative.call(fs, hp, ...rest);")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine("const _resolveFilename = Module._resolveFilename;")
+                appendLine("Module._resolveFilename = function(request, parent, isMain, options) {")
+                appendLine("  try { return _resolveFilename.call(this, request, parent, isMain, options); } catch (err) {")
+                appendLine("    if (!err || err.code !== 'MODULE_NOT_FOUND') throw err;")
+                appendLine("    const parentFile = parent && parent.filename ? parent.filename : '';")
+                appendLine("    const inOpenClaw = parentFile.includes('/usr/local/lib/node_modules/openclaw/');")
+                appendLine("    if (typeof request === 'string') {")
+                appendLine("      if (request.startsWith('/')) {")
+                appendLine("        if (request.startsWith('/usr/local/lib/node_modules/openclaw/')) {")
+                appendLine("          const hp = hostPathFor(request);")
+                appendLine("          if (hp) return hp;")
+                appendLine("          return request;")
+                appendLine("        }")
+                appendLine("      }")
+                appendLine("      if (inOpenClaw && (request.startsWith('./') || request.startsWith('../'))) {")
+                appendLine("        return path.resolve(path.dirname(parentFile), request);")
+                appendLine("      }")
+                appendLine("      if (inOpenClaw && !request.startsWith('.') && !request.startsWith('/') && !request.startsWith('node:')) {")
+                appendLine("        return path.join('/usr/local/lib/node_modules/openclaw/node_modules', request);")
+                appendLine("      }")
+                appendLine("    }")
+                appendLine("    throw err;")
+                appendLine("  }")
+                appendLine("};")
+                appendLine()
                 appendLine()
                 appendLine("const os = require('os');")
                 appendLine("const _ni = os.networkInterfaces;")
@@ -2162,6 +2398,45 @@ class ProcessManager(
                 appendLine("    };")
                 appendLine("  }")
                 appendLine("};")
+                appendLine()
+                // DNS resolution bypass for proroot — glibc's getaddrinfo can't read
+                // /etc/resolv.conf because __open_nocancel bypasses LD_PRELOAD.
+                // Fix: use c-ares (dns.resolve) instead of getaddrinfo (dns.lookup).
+                // c-ares reads resolv.conf via libuv open() which goes through our hook.
+                // dns.setServers() configures c-ares directly, no file read needed.
+                appendLine("var _dns = require('dns');")
+                appendLine("var _net = require('net');")
+                appendLine("try { _dns.setServers(['8.8.8.8', '8.8.4.4']); } catch(e) {}")
+                appendLine("var _origLookup = _dns.lookup;")
+                appendLine("_dns.lookup = function(hostname, options, callback) {")
+                appendLine("  if (typeof options === 'function') { callback = options; options = {}; }")
+                appendLine("  if (typeof options === 'number') { options = { family: options }; }")
+                appendLine("  options = options || {};")
+                appendLine("  if (_net.isIP(hostname)) {")
+                appendLine("    var fam = _net.isIPv4(hostname) ? 4 : 6;")
+                appendLine("    if (options.all) return process.nextTick(callback, null, [{address:hostname,family:fam}]);")
+                appendLine("    return process.nextTick(callback, null, hostname, fam);")
+                appendLine("  }")
+                appendLine("  if (hostname === 'localhost') {")
+                appendLine("    if (options.all) return process.nextTick(callback, null, [{address:'127.0.0.1',family:4}]);")
+                appendLine("    return process.nextTick(callback, null, '127.0.0.1', 4);")
+                appendLine("  }")
+                appendLine("  var fam = options.family || 0;")
+                appendLine("  _dns.resolve4(hostname, function(err, addrs) {")
+                appendLine("    if (!err && addrs && addrs.length > 0) {")
+                appendLine("      if (options.all) return callback(null, addrs.map(function(a){return {address:a,family:4};}));")
+                appendLine("      return callback(null, addrs[0], 4);")
+                appendLine("    }")
+                appendLine("    if (fam === 4) return callback(err || new Error('DNS resolve failed'));")
+                appendLine("    _dns.resolve6(hostname, function(e6, a6) {")
+                appendLine("      if (!e6 && a6 && a6.length > 0) {")
+                appendLine("        if (options.all) return callback(null, a6.map(function(a){return {address:a,family:6};}));")
+                appendLine("        return callback(null, a6[0], 6);")
+                appendLine("      }")
+                appendLine("      callback(err || e6 || new Error('DNS resolve failed'));")
+                appendLine("    });")
+                appendLine("  });")
+                appendLine("};")
             })
         }
     }
@@ -2171,7 +2446,7 @@ class ProcessManager(
     }
 
     private fun readInstalledOpenClawVersion(): String? {
-        val packageJson = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw/package.json")
+        val packageJson = File(prorootManager.rootfsDir, "usr/local/lib/node_modules/openclaw/package.json")
         if (!packageJson.exists()) return null
         return runCatching {
             org.json.JSONObject(packageJson.readText()).optString("version").trim().ifBlank { null }
@@ -2233,7 +2508,7 @@ class ProcessManager(
         }
 
         // Browser control 서버가 준비되면 startup 완전 완료
-        if (lineLower.contains("browser control listening") ||
+        if (lineLower.contains("browser") && lineLower.contains("control listening") ||
             lineLower.contains("browser/server") && lineLower.contains("listening")) {
             clearStartupAttempt()
             _gatewayState.value = _gatewayState.value.copy(
@@ -2270,7 +2545,7 @@ class ProcessManager(
     // ── Pairing 관리 (조회: 파일 직접 읽기, 승인/거부: OpenClaw 위임) ──
 
     private val credentialsDir: File
-        get() = File(prootManager.rootfsDir, "root/.openclaw/credentials")
+        get() = File(prorootManager.rootfsDir, "root/.openclaw/credentials")
 
     /**
      * 활성화된 채널의 대기 중인 pairing 요청 목록을 조회한다.
@@ -2329,7 +2604,7 @@ class ProcessManager(
                 val command = "export NODE_OPTIONS='--require /root/.openclaw-patch.js' && " +
                     "(openclaw pairing approve '${escapeSingleQuotedShell(normalizedChannel)}' '${escapeSingleQuotedShell(normalizedCode)}' 2>&1 " +
                     "|| openclaw pairing approve --channel '${escapeSingleQuotedShell(normalizedChannel)}' --code '${escapeSingleQuotedShell(normalizedCode)}' 2>&1)"
-                val result = prootManager.executeWithResult(
+                val result = prorootManager.executeWithResult(
                     command = command,
                     timeoutMs = 120_000,
                     extraEnv = buildOpenClawCliEnv(),
@@ -2374,7 +2649,7 @@ class ProcessManager(
                 val command = "DENY_CHANNEL='${escapeSingleQuotedShell(normalizedChannel)}' " +
                     "DENY_CODE='${escapeSingleQuotedShell(normalizedCode)}' " +
                     "node --input-type=module 2>&1 <<'__DENY_EOF__'\n${openClawPairingDenyScript}\n__DENY_EOF__"
-                val result = prootManager.executeWithResult(
+                val result = prorootManager.executeWithResult(
                     command = command,
                     timeoutMs = 120_000,
                     extraEnv = buildOpenClawCliEnv(),

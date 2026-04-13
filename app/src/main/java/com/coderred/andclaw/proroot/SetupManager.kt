@@ -1,4 +1,4 @@
-package com.coderred.andclaw.proot
+package com.coderred.andclaw.proroot
 
 import android.content.Context
 import android.content.pm.PackageManager
@@ -7,9 +7,9 @@ import com.coderred.andclaw.data.BundleUpdateFailureRecord
 import com.coderred.andclaw.data.PreferencesManager
 import com.coderred.andclaw.data.SetupState
 import com.coderred.andclaw.data.SetupStep
-import com.coderred.andclaw.proot.installer.ExecutableManifest
-import com.coderred.andclaw.proot.installer.TarInstallSpec
-import com.coderred.andclaw.proot.installer.TarInstaller
+import com.coderred.andclaw.proroot.installer.ExecutableManifest
+import com.coderred.andclaw.proroot.installer.TarInstallSpec
+import com.coderred.andclaw.proroot.installer.TarInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,7 +39,7 @@ import java.io.InputStreamReader
  *     playwright-chromium-arm64.tar.gz.bin  (~150-180MB) Chromium headless_shell
  *
  * 전체 흐름:
- * 1. proot 바이너리 확인 (jniLibs 에서 추출됨)
+ * 1. proroot 바이너리 확인 (jniLibs 에서 추출됨)
  * 2. rootfs 추출 (assets -> filesDir/rootfs)
  * 3. rootfs 설정 (DNS, hosts, profile)
  * 4. Node.js 추출 (assets -> rootfs/usr/local)
@@ -52,7 +52,7 @@ import java.io.InputStreamReader
  */
 class SetupManager(
     private val context: Context,
-    private val prootManager: ProotManager,
+    private val prorootManager: ProrootManager,
     private val preferencesManager: PreferencesManager? = null,
     private val nowEpochMs: () -> Long = { System.currentTimeMillis() },
     private val nowElapsedMs: () -> Long = { SystemClock.elapsedRealtime() },
@@ -109,34 +109,32 @@ class SetupManager(
         _state.value = SetupState(isInProgress = true)
 
         try {
-            // ─── Step 1: proot 바이너리 확인 ───
-            updateStep(SetupStep.CHECKING_PROOT, 0.02f)
-            log(">> Checking proot binary...")
-            if (!prootManager.isProotAvailable) {
+            // ─── Step 1: proroot 바이너리 확인 ───
+            updateStep(SetupStep.CHECKING_PROROOT, 0.02f)
+            log(">> Checking proroot binary...")
+            if (!prorootManager.isProrootAvailable) {
                 throw SetupException(
-                    "Cannot find proot binary (libproot.so).\n" +
+                "Cannot find proroot binary (libproroot.so).\n" +
                         "Run scripts/setup-assets.sh and build again."
                 )
             }
-            log("   proot: ${prootManager.prootBinaryPath}")
-            prootManager.setupNativeLibLinks()
-            val tallocLink = java.io.File(prootManager.libLinksDir, "libtalloc.so.2")
-            if (tallocLink.exists()) {
-                log("   libtalloc.so.2: ${tallocLink.absolutePath} (${tallocLink.length()} bytes)")
-            } else {
-                log("   WARNING: Failed to create libtalloc.so.2")
-                log("   nativeLibDir: ${context.applicationInfo.nativeLibraryDir}")
-                val nativeDir = java.io.File(context.applicationInfo.nativeLibraryDir)
-                nativeDir.listFiles()?.forEach { f ->
-                    log("     ${f.name} (${f.length()} bytes)")
-                }
+            log("   proroot: ${prorootManager.prorootBinaryPath}")
+            prorootManager.setupHookLibrary()
+            log("   Hook library ready: ${prorootManager.hookLibPath}")
+            log("   Binary ready")
+
+            // .proot-meta → .proroot-meta migration (proot → proroot 업데이트 호환)
+            val rootfs = prorootManager.rootfsDir
+            val oldMeta = File(rootfs, ".proot-meta")
+            val newMeta = File(rootfs, ".proroot-meta")
+            if (oldMeta.exists() && !newMeta.exists()) {
+                log("Migrating .proot-meta → .proroot-meta")
+                oldMeta.renameTo(newMeta)
             }
-            log("   LD_LIBRARY_PATH: ${prootManager.ldLibraryPath()}")
-            log("   Library links ready")
 
             // ─── Step 2: rootfs 추출 (assets -> filesDir) ───
             if (shouldExtractRootfs()) {
-                if (prootManager.isRootfsInstalled && !rootfsReadyFile.exists()) {
+                if (prorootManager.isRootfsInstalled && !rootfsReadyFile.exists()) {
                     log(">> Incomplete rootfs installation detected, recovering...")
                     clearDependentInstallMarkers()
                 }
@@ -159,7 +157,7 @@ class SetupManager(
             }
 
             // ─── Step 5: 시스템 도구 설치 (git, curl, python3, libs) ───
-            if (!prootManager.isSystemToolsInstalled || isToolsOutdated()) {
+            if (!prorootManager.isSystemToolsInstalled || isToolsOutdated()) {
                 installSystemTools()
             } else {
                 log(">> System tools already installed (v${getInstalledVersion(toolsVersionFile)}), skipping")
@@ -167,7 +165,7 @@ class SetupManager(
             }
 
             // ─── Step 6: OpenClaw 설치 ───
-            if (!prootManager.isOpenClawInstalled || isOpenClawOutdated()) {
+            if (!prorootManager.isOpenClawInstalled || isOpenClawOutdated()) {
                 installOpenClaw()
             } else {
                 log(">> OpenClaw already installed (v${getInstalledVersion(openclawVersionFile)}), skipping")
@@ -175,7 +173,7 @@ class SetupManager(
             }
 
             // ─── Step 7: Playwright Chromium 설치 ───
-            if (!prootManager.isChromiumInstalled || isPlaywrightOutdated()) {
+            if (!prorootManager.isChromiumInstalled || isPlaywrightOutdated()) {
                 installPlaywright()
             } else {
                 log(">> Chromium already installed (v${getInstalledVersion(playwrightVersionFile)}), skipping")
@@ -223,10 +221,10 @@ class SetupManager(
 
         tarInstaller.install(
             spec = TarInstallSpec(
-                assetName = ProotManager.ROOTFS_ASSET,
-                cacheDir = prootManager.cacheDir,
-                destinationDir = prootManager.rootfsDir,
-                permissionRootDir = prootManager.rootfsDir,
+                assetName = ProrootManager.ROOTFS_ASSET,
+                cacheDir = prorootManager.cacheDir,
+                destinationDir = prorootManager.rootfsDir,
+                permissionRootDir = prorootManager.rootfsDir,
             ),
             onProgress = { entries ->
                 log("   Extracting... ($entries entries)")
@@ -258,7 +256,7 @@ class SetupManager(
     // ── Step 3: rootfs 설정 ──
 
     private fun configureRootfs() {
-        val rootfsDir = prootManager.rootfsDir
+        val rootfsDir = prorootManager.rootfsDir
         log(">> Applying rootfs configuration...")
 
         // DNS
@@ -295,6 +293,7 @@ class SetupManager(
                 appendLine("export OPENCLAW_NO_RESPAWN=1")
                 appendLine("export npm_config_cache=/tmp/.npm")
                 appendLine("export PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright")
+                appendLine("export NODE_COMPILE_CACHE=/root/.cache/node-compile-cache")
             }
         )
         log("   Timezone: $deviceTz")
@@ -302,6 +301,9 @@ class SetupManager(
         // /tmp, /var/tmp
         File(rootfsDir, "tmp").apply { mkdirs(); setWritable(true, false) }
         File(rootfsDir, "var/tmp").mkdirs()
+
+        // V8 compile cache 디렉토리
+        File(rootfsDir, "root/.cache/node-compile-cache").mkdirs()
 
         // /etc/passwd, /etc/group (Node.js 모듈이 참조)
         File(rootfsDir, "etc/passwd").apply {
@@ -331,22 +333,22 @@ class SetupManager(
 
     private suspend fun extractNodeJsFromAssets() {
         updateStep(SetupStep.EXTRACTING_NODEJS, 0.26f)
-        log(">> Installing Node.js ${ProotManager.NODEJS_VERSION} (bundled assets)...")
+        log(">> Installing Node.js ${ProrootManager.NODEJS_VERSION} (bundled assets)...")
         nodeVersionFile.delete()
 
         // 추출 (strip-components=1 로 node-v22.x/ 프리픽스 제거)
         updateStep(SetupStep.EXTRACTING_NODEJS, 0.30f)
         log("   Installing...")
 
-        val usrLocal = File(prootManager.rootfsDir, "usr/local")
+        val usrLocal = File(prorootManager.rootfsDir, "usr/local")
         usrLocal.mkdirs()
 
         tarInstaller.install(
             spec = TarInstallSpec(
-                assetName = ProotManager.NODEJS_ASSET,
-                cacheDir = prootManager.cacheDir,
+                assetName = ProrootManager.NODEJS_ASSET,
+                cacheDir = prorootManager.cacheDir,
                 destinationDir = usrLocal,
-                permissionRootDir = prootManager.rootfsDir,
+                permissionRootDir = prorootManager.rootfsDir,
                 stripComponents = 1,
             ),
             onProgress = { entries ->
@@ -372,7 +374,7 @@ class SetupManager(
         )
 
         saveVersion(nodeVersionFile)
-        saveFingerprint(nodeFingerprintFile, ProotManager.NODEJS_ASSET)
+        saveFingerprint(nodeFingerprintFile, ProrootManager.NODEJS_ASSET)
         log("   Node.js installation complete")
         updateStep(SetupStep.EXTRACTING_NODEJS, 0.38f)
     }
@@ -388,10 +390,10 @@ class SetupManager(
 
         tarInstaller.install(
             spec = TarInstallSpec(
-                assetName = ProotManager.SYSTEM_TOOLS_ASSET,
-                cacheDir = prootManager.cacheDir,
-                destinationDir = prootManager.rootfsDir,
-                permissionRootDir = prootManager.rootfsDir,
+                assetName = ProrootManager.SYSTEM_TOOLS_ASSET,
+                cacheDir = prorootManager.cacheDir,
+                destinationDir = prorootManager.rootfsDir,
+                permissionRootDir = prorootManager.rootfsDir,
             ),
             onProgress = { entries ->
                 if (entries % 1000 == 0) log("   Extracting... ($entries entries)")
@@ -416,7 +418,7 @@ class SetupManager(
         )
 
         saveVersion(toolsVersionFile)
-        saveFingerprint(toolsFingerprintFile, ProotManager.SYSTEM_TOOLS_ASSET)
+        saveFingerprint(toolsFingerprintFile, ProrootManager.SYSTEM_TOOLS_ASSET)
         updateStep(SetupStep.INSTALLING_TOOLS, 0.55f)
         log(">> System tools installation complete")
     }
@@ -430,7 +432,7 @@ class SetupManager(
         openclawVersionFile.delete()
 
         // 기존 openclaw 디렉토리 삭제 (이전 번들의 잔존 파일 방지)
-        val openclawDir = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
+        val openclawDir = File(prorootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
         if (openclawDir.exists()) {
             log("   Removing previous OpenClaw installation...")
             openclawDir.deleteRecursively()
@@ -441,10 +443,10 @@ class SetupManager(
 
         tarInstaller.install(
             spec = TarInstallSpec(
-                assetName = ProotManager.OPENCLAW_ASSET,
-                cacheDir = prootManager.cacheDir,
-                destinationDir = prootManager.rootfsDir,
-                permissionRootDir = prootManager.rootfsDir,
+                assetName = ProrootManager.OPENCLAW_ASSET,
+                cacheDir = prorootManager.cacheDir,
+                destinationDir = prorootManager.rootfsDir,
+                permissionRootDir = prorootManager.rootfsDir,
             ),
             onProgress = { entries ->
                 if (entries % 1000 == 0) log("   Extracting... ($entries entries)")
@@ -470,12 +472,12 @@ class SetupManager(
 
         log("   OpenClaw installation complete")
 
-        if (!prootManager.isOpenClawInstalled) {
+        if (!prorootManager.isOpenClawInstalled) {
             throw SetupException("Cannot find OpenClaw module after installation")
         }
 
         saveVersion(openclawVersionFile)
-        saveFingerprint(openclawFingerprintFile, ProotManager.OPENCLAW_ASSET)
+        saveFingerprint(openclawFingerprintFile, ProrootManager.OPENCLAW_ASSET)
         updateStep(SetupStep.INSTALLING_OPENCLAW, OPENCLAW_INSTALL_PROGRESS_END)
         updateBytes(0, 0)
         log(">> OpenClaw installation complete")
@@ -505,7 +507,7 @@ class SetupManager(
             log(">> OpenClaw manual sync (full reinstall)...")
 
             // 기존 openclaw 디렉토리 삭제 (이전 번들의 잔존 파일 방지)
-            val openclawDir = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
+            val openclawDir = File(prorootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
             if (openclawDir.exists()) {
                 log("   Removing previous OpenClaw installation...")
                 openclawDir.deleteRecursively()
@@ -513,10 +515,10 @@ class SetupManager(
 
             tarInstaller.install(
                 spec = TarInstallSpec(
-                    assetName = ProotManager.OPENCLAW_ASSET,
-                    cacheDir = prootManager.cacheDir,
-                    destinationDir = prootManager.rootfsDir,
-                    permissionRootDir = prootManager.rootfsDir,
+                    assetName = ProrootManager.OPENCLAW_ASSET,
+                    cacheDir = prorootManager.cacheDir,
+                    destinationDir = prorootManager.rootfsDir,
+                    permissionRootDir = prorootManager.rootfsDir,
                 ),
                 onProgress = { entries ->
                     if (entries % 1000 == 0) log("   Extracting... ($entries entries)")
@@ -531,9 +533,11 @@ class SetupManager(
             )
 
             updateStep(SetupStep.VERIFYING, 0.95f)
+            prorootManager.setupHookLibrary()
+            log("   Hook library refreshed before OpenClaw verification")
             ensureOpenClawExecutable()
             saveVersion(openclawVersionFile)
-            saveFingerprint(openclawFingerprintFile, ProotManager.OPENCLAW_ASSET)
+            saveFingerprint(openclawFingerprintFile, ProrootManager.OPENCLAW_ASSET)
             updateStep(SetupStep.COMPLETE, 1.0f)
             _state.value = _state.value.copy(isInProgress = false)
         } catch (error: Exception) {
@@ -546,8 +550,21 @@ class SetupManager(
         }
     }
 
+    fun clearNodeCompileCache() {
+        val cacheDir = File(prorootManager.rootfsDir, "root/.cache/node-compile-cache")
+        if (!cacheDir.exists()) return
+
+        val cleared = runCatching { cacheDir.deleteRecursively() && !cacheDir.exists() }
+            .getOrDefault(false)
+        if (cleared) {
+            log("   Node.js compile cache cleared")
+        } else {
+            log("   WARNING: Failed to clear Node.js compile cache")
+        }
+    }
+
     private fun readInstalledOpenClawVersion(): String? {
-        val packageJson = File(prootManager.rootfsDir, "usr/local/lib/node_modules/openclaw/package.json")
+        val packageJson = File(prorootManager.rootfsDir, "usr/local/lib/node_modules/openclaw/package.json")
         if (!packageJson.exists()) return null
         return runCatching {
             JSONObject(packageJson.readText()).optString("version").trim().ifBlank { null }
@@ -598,20 +615,33 @@ class SetupManager(
         return if (parts.isEmpty()) null else parts
     }
 
-    private fun ensureOpenClawExecutable() {
-        val openClawBin = File(prootManager.rootfsDir, "usr/local/bin/openclaw")
+    private suspend fun ensureOpenClawExecutable() {
+        val openClawBin = File(prorootManager.rootfsDir, "usr/local/bin/openclaw")
         if (!openClawBin.exists()) {
-            throw SetupException("OpenClaw executable not found: ${openClawBin.path}")
+            val parentDir = openClawBin.parentFile
+            val diag = buildString {
+                append("OpenClaw executable not found: ${openClawBin.path}")
+                append(" (parentExists=${parentDir?.exists()}, parentIsDir=${parentDir?.isDirectory}")
+                val nodeModules = File(prorootManager.rootfsDir, "usr/local/lib/node_modules/openclaw")
+                append(", nodeModulesExists=${nodeModules.exists()}")
+                val usable = parentDir?.usableSpace ?: -1
+                if (usable >= 0) append(", usableSpace=${usable / 1024 / 1024}MB")
+                append(")")
+            }
+            android.util.Log.e("SetupManager", diag)
+            throw SetupException(diag)
         }
         if (!openClawBin.canExecute()) {
             throw SetupException(
                 "OpenClaw executable is not executable after install: ${openClawBin.path}",
             )
         }
-        val validationResult = runOpenClawValidation(requirePatchedNodeOptions = false)
+        val validationResult = runOpenClawValidationInCurrentProcess(requirePatchedNodeOptions = false)
         if (validationResult == null || validationResult.exitCode != 0) {
             throw SetupException(
-                "OpenClaw executable validation failed: ${openClawBin.path}",
+                "OpenClaw executable validation failed: ${openClawBin.path}" +
+                    (validationResult?.let { " (exit=${it.exitCode}, output=${it.output.take(200)})" }
+                        ?: " (null result)"),
             )
         }
         log("   OpenClaw executable verified")
@@ -628,10 +658,10 @@ class SetupManager(
 
         tarInstaller.install(
             spec = TarInstallSpec(
-                assetName = ProotManager.PLAYWRIGHT_ASSET,
-                cacheDir = prootManager.cacheDir,
-                destinationDir = prootManager.rootfsDir,
-                permissionRootDir = prootManager.rootfsDir,
+                assetName = ProrootManager.PLAYWRIGHT_ASSET,
+                cacheDir = prorootManager.cacheDir,
+                destinationDir = prorootManager.rootfsDir,
+                permissionRootDir = prorootManager.rootfsDir,
             ),
             onProgress = { entries ->
                 if (entries % 1000 == 0) log("   Extracting... ($entries entries)")
@@ -655,13 +685,13 @@ class SetupManager(
             },
         )
 
-        if (!prootManager.refreshChromiumExecutableMarker()) {
+        if (!prorootManager.refreshChromiumExecutableMarker()) {
             throw SetupException("Cannot find Chromium executable after installation")
         }
         log("   Chromium executable marker updated")
 
         saveVersion(playwrightVersionFile)
-        saveFingerprint(playwrightFingerprintFile, ProotManager.PLAYWRIGHT_ASSET)
+        saveFingerprint(playwrightFingerprintFile, ProrootManager.PLAYWRIGHT_ASSET)
         updateStep(SetupStep.INSTALLING_CHROMIUM, 0.90f)
         log(">> Playwright Chromium installation complete")
     }
@@ -673,13 +703,13 @@ class SetupManager(
      * SetupScreen 없이 GatewayService에서 직접 호출 가능.
      */
     fun isBundleUpdateRequired(includeOpenClawAssetUpdate: Boolean = false): Boolean {
-        val openClawUpdateRequired = !prootManager.isOpenClawInstalled ||
+        val openClawUpdateRequired = !prorootManager.isOpenClawInstalled ||
             (includeOpenClawAssetUpdate && isOpenClawOutdated())
         return shouldExtractNodeJsByMetadata() ||
-            !prootManager.isSystemToolsInstalled ||
+            !prorootManager.isSystemToolsInstalled ||
             isToolsOutdated() ||
             openClawUpdateRequired ||
-            !prootManager.isChromiumInstalled ||
+            !prorootManager.isChromiumInstalled ||
             isPlaywrightOutdated()
     }
 
@@ -701,7 +731,7 @@ class SetupManager(
             android.util.Log.i("SetupManager", "Node.js update complete")
         }
 
-        if (!prootManager.isSystemToolsInstalled || isToolsOutdated()) {
+        if (!prorootManager.isSystemToolsInstalled || isToolsOutdated()) {
             android.util.Log.i("SetupManager", "System tools update required (installed=${getInstalledVersion(toolsVersionFile)}, app=$appVersion)")
             onStepChanged?.invoke(SetupStep.INSTALLING_TOOLS)
             installSystemTools()
@@ -709,7 +739,7 @@ class SetupManager(
         }
 
         val openClawUpdateRequired = forceOpenClawReinstall ||
-            !prootManager.isOpenClawInstalled ||
+            !prorootManager.isOpenClawInstalled ||
             (includeOpenClawAssetUpdate && isOpenClawOutdated())
         if (openClawUpdateRequired) {
             android.util.Log.i("SetupManager", "OpenClaw update required (installed=${getInstalledVersion(openclawVersionFile)}, app=$appVersion)")
@@ -718,7 +748,7 @@ class SetupManager(
             android.util.Log.i("SetupManager", "OpenClaw update complete")
         }
 
-        if (!prootManager.isChromiumInstalled || isPlaywrightOutdated()) {
+        if (!prorootManager.isChromiumInstalled || isPlaywrightOutdated()) {
             android.util.Log.i("SetupManager", "Playwright update required (installed=${getInstalledVersion(playwrightVersionFile)}, app=$appVersion)")
             onStepChanged?.invoke(SetupStep.INSTALLING_CHROMIUM)
             installPlaywright()
@@ -759,7 +789,10 @@ class SetupManager(
             requestKind = BundleUpdateRequestKind.RECOVERY,
             // Keep currently working runtime files until recovery actually succeeds.
             // Clearing install markers is enough to force re-install on the recovery path.
-            beforeUpdate = { clearDependentInstallMarkers(clearNodeMarkers = false) },
+            beforeUpdate = {
+                clearDependentInstallMarkers(clearNodeMarkers = false)
+                clearNodeCompileCache()
+            },
             allowWhenUpdateNotRequired = true,
             includeOpenClawAssetUpdate = true,
             forceOpenClawReinstall = true,
@@ -922,31 +955,31 @@ class SetupManager(
     // ── 번들 버전 관리 (3분할) ──
 
     private val toolsVersionFile: File
-        get() = File(prootManager.rootfsDir, ".tools_version")
+        get() = File(prorootManager.rootfsDir, ".tools_version")
 
     private val rootfsReadyFile: File
-        get() = File(prootManager.rootfsDir, ".rootfs_version")
+        get() = File(prorootManager.rootfsDir, ".rootfs_version")
 
     private val nodeVersionFile: File
-        get() = File(prootManager.rootfsDir, ".node_version")
+        get() = File(prorootManager.rootfsDir, ".node_version")
 
     private val nodeFingerprintFile: File
-        get() = File(prootManager.rootfsDir, ".node_fingerprint")
+        get() = File(prorootManager.rootfsDir, ".node_fingerprint")
 
     private val openclawVersionFile: File
-        get() = File(prootManager.rootfsDir, ".bundle_version")
+        get() = File(prorootManager.rootfsDir, ".bundle_version")
 
     private val playwrightVersionFile: File
-        get() = File(prootManager.rootfsDir, ".playwright_version")
+        get() = File(prorootManager.rootfsDir, ".playwright_version")
 
     private val toolsFingerprintFile: File
-        get() = File(prootManager.rootfsDir, ".tools_fingerprint")
+        get() = File(prorootManager.rootfsDir, ".tools_fingerprint")
 
     private val openclawFingerprintFile: File
-        get() = File(prootManager.rootfsDir, ".bundle_fingerprint")
+        get() = File(prorootManager.rootfsDir, ".bundle_fingerprint")
 
     private val playwrightFingerprintFile: File
-        get() = File(prootManager.rootfsDir, ".playwright_fingerprint")
+        get() = File(prorootManager.rootfsDir, ".playwright_fingerprint")
 
     private fun getAppVersionCode(): Int {
         return try {
@@ -972,7 +1005,7 @@ class SetupManager(
 
     private fun getInstalledNodeVersion(): String {
         return runCatching {
-            prootManager.executeAndCapture("node --version")?.trim().orEmpty()
+            prorootManager.executeAndCapture("node --version")?.trim().orEmpty()
         }.getOrDefault("")
     }
 
@@ -1007,13 +1040,13 @@ class SetupManager(
     }
 
     internal fun shouldExtractRootfs(): Boolean {
-        return !prootManager.isRootfsInstalled || getInstalledVersion(rootfsReadyFile) <= 0
+        return !prorootManager.isRootfsInstalled || getInstalledVersion(rootfsReadyFile) <= 0
     }
 
     private fun shouldExtractNodeJsByMetadata(): Boolean {
-        if (!prootManager.isNodeInstalled) return true
+        if (!prorootManager.isNodeInstalled) return true
         return isAssetOutdated(
-            assetName = ProotManager.NODEJS_ASSET,
+            assetName = ProrootManager.NODEJS_ASSET,
             fingerprintFile = nodeFingerprintFile,
             versionFile = nodeVersionFile,
         )
@@ -1021,7 +1054,7 @@ class SetupManager(
 
     internal fun shouldExtractNodeJs(): Boolean {
         if (shouldExtractNodeJsByMetadata()) return true
-        if (getInstalledNodeVersion() != ProotManager.NODEJS_VERSION) return true
+        if (getInstalledNodeVersion() != ProrootManager.NODEJS_VERSION) return true
         return false
     }
 
@@ -1048,7 +1081,7 @@ class SetupManager(
             ".playwright_chrome_path",
         )
         allowlistPaths.forEach { relativePath ->
-            val target = File(prootManager.rootfsDir, relativePath)
+            val target = File(prorootManager.rootfsDir, relativePath)
             if (!target.exists()) return@forEach
             if (target.isDirectory) {
                 target.deleteRecursively()
@@ -1117,7 +1150,7 @@ class SetupManager(
 
     private fun isToolsOutdated(): Boolean {
         return isAssetOutdated(
-            assetName = ProotManager.SYSTEM_TOOLS_ASSET,
+            assetName = ProrootManager.SYSTEM_TOOLS_ASSET,
             fingerprintFile = toolsFingerprintFile,
             versionFile = toolsVersionFile,
         )
@@ -1125,7 +1158,7 @@ class SetupManager(
 
     private fun isOpenClawOutdated(): Boolean {
         return isAssetOutdated(
-            assetName = ProotManager.OPENCLAW_ASSET,
+            assetName = ProrootManager.OPENCLAW_ASSET,
             fingerprintFile = openclawFingerprintFile,
             versionFile = openclawVersionFile,
         )
@@ -1133,7 +1166,7 @@ class SetupManager(
 
     private fun isPlaywrightOutdated(): Boolean {
         return isAssetOutdated(
-            assetName = ProotManager.PLAYWRIGHT_ASSET,
+            assetName = ProrootManager.PLAYWRIGHT_ASSET,
             fingerprintFile = playwrightFingerprintFile,
             versionFile = playwrightVersionFile,
         )
@@ -1177,7 +1210,7 @@ class SetupManager(
         // Node.js os.networkInterfaces() 패치
         // proot에서 getifaddrs() syscall이 EACCES를 반환하므로
         // 가짜 loopback 인터페이스를 반환하는 preload 스크립트
-        val patchFile = File(prootManager.rootfsDir, "root/.openclaw-patch.js")
+        val patchFile = File(prorootManager.rootfsDir, "root/.openclaw-patch.js")
         patchFile.writeText(buildString {
             appendLine("const os = require('os');")
             appendLine("const _ni = os.networkInterfaces;")
@@ -1206,9 +1239,9 @@ class SetupManager(
     private suspend fun verify() = withContext(Dispatchers.IO) {
         log(">> Verifying installation...")
 
-        log("   Checking proot...")
-        if (executeInProot("echo 'proot OK'") != 0) {
-            throw SetupException("proot check failed")
+        log("   Checking proroot...")
+        if (executeInProot("echo 'proroot OK'") != 0) {
+            throw SetupException("proroot check failed")
         }
 
         log("   Checking Node.js...")
@@ -1217,12 +1250,12 @@ class SetupManager(
         }
 
         log("   Checking OpenClaw...")
-        val openClawValidationResult = runOpenClawValidation(requirePatchedNodeOptions = true)
-        if (openClawValidationResult == null || openClawValidationResult.exitCode != 0 || !prootManager.isOpenClawInstalled) {
+        val openClawValidationResult = runOpenClawValidationInCurrentProcess(requirePatchedNodeOptions = true)
+        if (openClawValidationResult == null || openClawValidationResult.exitCode != 0 || !prorootManager.isOpenClawInstalled) {
             throw SetupException("OpenClaw validation failed")
         }
 
-        if (prootManager.isChromiumInstalled) {
+        if (prorootManager.isChromiumInstalled) {
             log("   Chromium: installed")
         } else {
             log("   WARNING: Chromium not installed (browser tools disabled)")
@@ -1236,8 +1269,8 @@ class SetupManager(
     // ── 유틸 ──
 
     private fun executeInProot(command: String): Int {
-        val cmd = prootManager.buildProotCommand(command)
-        val env = prootManager.buildEnvironment(
+        val cmd = prorootManager.buildProrootCommand(command)
+        val env = prorootManager.buildEnvironment(
             mapOf(
                 "HOME" to "/root",
                 "PATH" to "/usr/local/bin:/usr/bin:/bin",
@@ -1258,15 +1291,36 @@ class SetupManager(
         return process.waitFor()
     }
 
-    private fun runOpenClawValidation(requirePatchedNodeOptions: Boolean): ProotManager.CommandResult? {
-        val extraEnv = if (requirePatchedNodeOptions) {
-            mapOf("NODE_OPTIONS" to "--require /root/.openclaw-patch.js")
-        } else {
-            emptyMap()
+    internal fun runOpenClawValidationInCurrentProcess(requirePatchedNodeOptions: Boolean): ProrootManager.CommandResult? {
+        val validationCommand = buildString {
+            append("export UV_USE_IO_URING=0 && ")
+            if (requirePatchedNodeOptions) {
+                append("export NODE_OPTIONS='--require /root/.openclaw-patch.js' && ")
+            }
+            append("exec ${ProrootManager.OPENCLAW_NODE_BIN} ${ProrootManager.OPENCLAW_ENTRYPOINT} --version")
         }
-        return prootManager.executeWithResult(
-            command = OPENCLAW_VALIDATION_BASE_COMMAND,
-            extraEnv = extraEnv,
+        val probeCommands = listOf(
+            "probe-bin-true" to "exec /bin/true",
+            "probe-node-version" to "exec ${ProrootManager.OPENCLAW_NODE_BIN} --version",
+            "probe-openclaw-version" to validationCommand,
+        )
+        probeCommands.forEachIndexed { index, (phase, command) ->
+            val probeResult = prorootManager.executeWithResult(
+                command = command,
+                extraEnv = mapOf("PROROOT_PROBE_PHASE" to phase),
+                wrapInHostShell = false,
+                captureViaTempFile = true,
+            )
+            log("   Validation probe[$index]: phase=$phase exit=${probeResult?.exitCode} cmd=$command")
+            probeResult?.output?.lineSequence()?.take(10)?.forEach { line ->
+                log("   Validation probe[$index] out: $line")
+            }
+        }
+        return prorootManager.executeWithResult(
+            command = validationCommand,
+            extraEnv = mapOf("PROROOT_PROBE_PHASE" to "probe-openclaw-version"),
+            wrapInHostShell = false,
+            captureViaTempFile = true,
         )
     }
 

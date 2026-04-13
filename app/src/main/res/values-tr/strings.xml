@@ -14,8 +14,8 @@
     <string name="setup_subtitle">OpenClaw’ı Android’de ayarlayın</string>
     <string name="setup_storage">Depolama</string>
     <string name="setup_storage_mb">%1$d MB</string>
-    <string name="setup_proot_ready">Hazır</string>
-    <string name="setup_proot_unavailable">Kullanılamıyor</string>
+    <string name="setup_proroot_ready">Hazır</string>
+    <string name="setup_proroot_unavailable">Kullanılamıyor</string>
     <string name="setup_description">Her şey dahil. Aşağıdaki düğmeye dokunun.</string>
     <string name="setup_steps_detail">1. Ortamı hazırlayın\n2. Bileşenleri yükleyin\n3. Yapay zeka motorunu kurun\n4. Son yapılandırma</string>
     <string name="setup_estimate">1–3 dakika sürer</string>
@@ -24,9 +24,9 @@
     <string name="setup_btn_retry">Yeniden Dene</string>
     <string name="setup_error_default">Kurulum sırasında bir hata oluştu</string>
     <string name="setup_err_storage">Yetersiz depolama (minimum 1,5 GB gereklidir)</string>
-    <string name="setup_err_proot">proot ikili dosyası APK\'ye dahil değildir.\nscripts/setup-assets.sh dosyasını çalıştırın ve yeniden derleyin.</string>
+    <string name="setup_err_proroot">proroot ikili dosyası APK\'ye dahil değildir.\nscripts/setup-assets.sh dosyasını çalıştırın ve yeniden derleyin.</string>
     <string name="step_idle">Boş</string>
-    <string name="step_checking_proot">Hazırlanıyor…</string>
+    <string name="step_checking_proroot">Hazırlanıyor…</string>
     <string name="step_extracting_rootfs">Ortam ayarlanıyor…</string>
     <string name="step_configuring_rootfs">Yapılandırılıyor…</string>
     <string name="step_extracting_nodejs">Bileşenler yükleniyor…</string>

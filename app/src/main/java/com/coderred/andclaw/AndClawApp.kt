@@ -2,17 +2,17 @@ package com.coderred.andclaw
 
 import android.app.Application
 import com.coderred.andclaw.data.PreferencesManager
-import com.coderred.andclaw.proot.OpenClawModelCatalogReader
-import com.coderred.andclaw.proot.ProcessManager
-import com.coderred.andclaw.proot.ProotManager
-import com.coderred.andclaw.proot.SetupManager
+import com.coderred.andclaw.proroot.OpenClawModelCatalogReader
+import com.coderred.andclaw.proroot.ProcessManager
+import com.coderred.andclaw.proroot.ProrootManager
+import com.coderred.andclaw.proroot.SetupManager
 import com.coderred.andclaw.service.GatewayService
 
 class AndClawApp : Application() {
 
     lateinit var preferencesManager: PreferencesManager
         private set
-    lateinit var prootManager: ProotManager
+    lateinit var prorootManager: ProrootManager
         private set
     lateinit var setupManager: SetupManager
         private set
@@ -23,9 +23,10 @@ class AndClawApp : Application() {
         super.onCreate()
         OpenClawModelCatalogReader.init(this)
         preferencesManager = PreferencesManager(this)
-        prootManager = ProotManager(this)
-        setupManager = SetupManager(this, prootManager, preferencesManager)
-        processManager = ProcessManager(prootManager)
+        prorootManager = ProrootManager(this)
+        prorootManager.setupHookLibrary()
+        setupManager = SetupManager(this, prorootManager, preferencesManager)
+        processManager = ProcessManager(prorootManager)
         GatewayService.bindRetainedProcessManager(processManager)
     }
 }
