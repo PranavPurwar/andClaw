@@ -31,7 +31,6 @@ Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 - `app/src/androidTest/` - 계측 테스트
 - `install_time_assets/` - Play Asset Delivery install-time asset pack
 - `scripts/setup-assets.sh` - `jniLibs`와 번들 런타임 에셋 생성 스크립트
-- `sync-public.sh` - 퍼블릭 미러 저장소 동기화 스크립트
 
 ## 빌드
 
@@ -71,12 +70,6 @@ Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 Google Play는 Android 15+ 타깃 앱에 16KB 페이지 크기 호환을 요구합니다. `scripts/setup-assets.sh`는 패키징 전에 번들 네이티브 바이너리를 검증합니다.
 
 - `scripts/setup-assets.sh`가 `app/src/main/jniLibs/arm64-v8a/*.so`의 LOAD 세그먼트 정렬을 확인합니다.
-
-## 릴리스 메모
-
-- Play 업로드용 번들은 `./gradlew bundleProdRelease`를 우선 권장합니다.
-- `scripts/upload-play-aab.sh`는 기본 AAB를 먼저 `prodRelease` 경로에서 찾도록 되어 있습니다.
-- 여기서 퍼블릭 문서나 앱 리소스를 변경했으면 `./sync-public.sh sync`로 퍼블릭 미러를 맞추고 `./sync-public.sh check`로 검증하세요.
 
 ## 오픈소스 고지
 

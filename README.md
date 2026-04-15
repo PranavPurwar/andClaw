@@ -31,7 +31,6 @@ Google Play: https://play.google.com/store/apps/details?id=com.coderred.andclaw
 - `app/src/androidTest/` - instrumentation tests
 - `install_time_assets/` - Play Asset Delivery install-time asset pack
 - `scripts/setup-assets.sh` - prepares `jniLibs` and bundled runtime assets
-- `sync-public.sh` - syncs curated files to the public mirror repo
 
 ## Build
 
@@ -71,12 +70,6 @@ Artifacts:
 Google Play requires 16KB page-size compatibility for Android 15+ targets. `scripts/setup-assets.sh` verifies bundled native binaries before packaging.
 
 - `scripts/setup-assets.sh` checks `app/src/main/jniLibs/arm64-v8a/*.so` LOAD segment alignments.
-
-## Release Notes
-
-- Prefer `./gradlew bundleProdRelease` for Play uploads.
-- `scripts/upload-play-aab.sh` resolves the default AAB from the `prodRelease` path first.
-- If you update public-facing docs or app resources here, sync the public mirror with `./sync-public.sh sync` and verify with `./sync-public.sh check`.
 
 ## Open-Source Notices
 

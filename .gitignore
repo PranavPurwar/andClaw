@@ -20,9 +20,6 @@ local.properties
 *.jks
 keystore.properties
 
-# Native binaries (다운로드 스크립트로 생성됨)
-app/src/main/jniLibs/
-
 # Assets 번들 파일 (다운로드 스크립트로 생성됨)
 app/src/main/assets/rootfs.tar.gz
 app/src/main/assets/node-arm64.tar.gz
