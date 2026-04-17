@@ -69,6 +69,17 @@ object BugReportZipWriter {
             zipOutput.putNextEntry(entry)
             zipOutput.write(payload)
             zipOutput.closeEntry()
+
+            bundle.attachments
+                .sortedBy { it.entryName }
+                .forEach { attachment ->
+                    val attachmentEntry = ZipEntry(attachment.entryName).apply {
+                        time = bundle.generatedAtEpochMs
+                    }
+                    zipOutput.putNextEntry(attachmentEntry)
+                    zipOutput.write(attachment.content.toByteArray(StandardCharsets.UTF_8))
+                    zipOutput.closeEntry()
+                }
         }
     }
 

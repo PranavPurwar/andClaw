@@ -24,15 +24,18 @@ class OpenClawConfigEditorManager(
         val removedExtensions: List<String>,
         val missingExtensions: List<String>,
         val failedExtensions: List<String>,
+        val removedFileCount: Int,
+        val missingFileCount: Int,
+        val failedFileCount: Int,
     ) {
         val removedCount: Int
-            get() = removedExtensions.size
+            get() = removedFileCount
 
         val missingCount: Int
-            get() = missingExtensions.size
+            get() = missingFileCount
 
         val failedCount: Int
-            get() = failedExtensions.size
+            get() = failedFileCount
     }
 
     private val openClawDir: File
@@ -43,6 +46,9 @@ class OpenClawConfigEditorManager(
 
     private val extensionsDir: File
         get() = File(rootfsDir, OPENCLAW_EXTENSIONS_DIR_PATH)
+
+    private val nodeModulesDir: File
+        get() = File(rootfsDir, OPENCLAW_NODE_MODULES_DIR_PATH)
 
     fun loadCurrentConfig(): String? = configFile.takeIf(File::exists)?.readText()
 
@@ -86,55 +92,106 @@ class OpenClawConfigEditorManager(
         val removed = mutableListOf<String>()
         val missing = mutableListOf<String>()
         val failed = mutableListOf<String>()
-        val extensionsPath = extensionsDir.toPath()
+        val counts = IntArray(3) // [removedFiles, missingFiles, failedFiles]
 
-        if (hasSymbolicLinkInExtensionsRootPath()) {
-            return ExtensionPruneResult(
-                removedExtensions = emptyList(),
-                missingExtensions = emptyList(),
-                failedExtensions = BLACKLISTED_EXTENSION_DIRS,
-            )
-        }
+        pruneTargets(
+            rootDir = extensionsDir,
+            rootRelativePath = OPENCLAW_EXTENSIONS_DIR_PATH,
+            targets = BLACKLISTED_EXTENSION_DIRS,
+            removed = removed,
+            missing = missing,
+            failed = failed,
+            counts = counts,
+        )
 
-        BLACKLISTED_EXTENSION_DIRS.forEach { extensionName ->
-            val targetPath = extensionsPath.resolve(extensionName)
-            if (!Files.exists(targetPath)) {
-                missing += extensionName
-                return@forEach
-            }
-
-            if (Files.isSymbolicLink(targetPath)) {
-                failed += extensionName
-                return@forEach
-            }
-
-            if (containsNestedSymbolicLink(targetPath)) {
-                failed += extensionName
-                return@forEach
-            }
-
-            val deleted = runCatching { deleteTreeWithoutFollowingSymlinks(targetPath) }
-                .getOrDefault(false)
-
-            if (deleted && !Files.exists(targetPath)) {
-                removed += extensionName
-            } else {
-                failed += extensionName
-            }
-        }
+        pruneTargets(
+            rootDir = nodeModulesDir,
+            rootRelativePath = OPENCLAW_NODE_MODULES_DIR_PATH,
+            targets = BLACKLISTED_NODE_MODULES_DIRS,
+            removed = removed,
+            missing = missing,
+            failed = failed,
+            counts = counts,
+        )
 
         return ExtensionPruneResult(
             removedExtensions = removed,
             missingExtensions = missing,
             failedExtensions = failed,
+            removedFileCount = counts[0],
+            missingFileCount = counts[1],
+            failedFileCount = counts[2],
         )
     }
 
-    private fun hasSymbolicLinkInExtensionsRootPath(): Boolean {
+    private fun pruneTargets(
+        rootDir: File,
+        rootRelativePath: String,
+        targets: List<String>,
+        removed: MutableList<String>,
+        missing: MutableList<String>,
+        failed: MutableList<String>,
+        counts: IntArray,
+    ) {
+        if (hasSymbolicLinkOnRootPath(rootRelativePath)) {
+            failed += targets
+            // rootPath를 신뢰할 수 없으므로 파일 수 0으로 간주 (삭제 시도 자체 skip)
+            return
+        }
+
+        val rootPath = rootDir.toPath()
+
+        targets.forEach { name ->
+            val targetPath = name.split('/').fold(rootPath) { acc, segment -> acc.resolve(segment) }
+            if (!Files.exists(targetPath)) {
+                missing += name
+                return@forEach
+            }
+
+            if (Files.isSymbolicLink(targetPath)) {
+                failed += name
+                return@forEach
+            }
+
+            if (containsNestedSymbolicLink(targetPath)) {
+                failed += name
+                counts[2] += countFilesWithoutFollowingSymlinks(targetPath)
+                return@forEach
+            }
+
+            val fileCount = countFilesWithoutFollowingSymlinks(targetPath)
+            val deleted = runCatching { deleteTreeWithoutFollowingSymlinks(targetPath) }
+                .getOrDefault(false)
+
+            if (deleted && !Files.exists(targetPath)) {
+                removed += name
+                counts[0] += fileCount
+            } else {
+                failed += name
+                counts[2] += fileCount
+            }
+        }
+    }
+
+    private fun countFilesWithoutFollowingSymlinks(targetPath: Path): Int {
+        var count = 0
+        Files.walkFileTree(targetPath, object : SimpleFileVisitor<Path>() {
+            override fun visitFile(
+                file: Path,
+                attrs: BasicFileAttributes,
+            ): FileVisitResult {
+                count++
+                return FileVisitResult.CONTINUE
+            }
+        })
+        return count
+    }
+
+    private fun hasSymbolicLinkOnRootPath(rootRelativePath: String): Boolean {
         var current = rootfsDir.toPath().toAbsolutePath().normalize()
         if (Files.isSymbolicLink(current)) return true
 
-        OPENCLAW_EXTENSIONS_DIR_PATH.split('/').forEach { segment ->
+        rootRelativePath.split('/').forEach { segment ->
             current = current.resolve(segment)
             if (Files.isSymbolicLink(current)) {
                 return true
@@ -210,6 +267,7 @@ class OpenClawConfigEditorManager(
         private const val OPENCLAW_DIR_PATH = "root/.openclaw"
         private const val CONFIG_FILE_NAME = "openclaw.json"
         private const val OPENCLAW_EXTENSIONS_DIR_PATH = "usr/local/lib/node_modules/openclaw/dist/extensions"
+        private const val OPENCLAW_NODE_MODULES_DIR_PATH = "usr/local/lib/node_modules/openclaw/node_modules"
         private val BACKUP_FILE_NAMES = listOf(
             "openclaw.json.bak",
             "openclaw.json.bak.1",
@@ -227,6 +285,19 @@ class OpenClawConfigEditorManager(
             "webhooks",
             "nostr",
             "qqbot",
+        )
+        // dist BFS 기준 dead island. scope 전체가 unreachable인 것만 scope 단위로 넣고,
+        // 살아있는 subpkg가 하나라도 있는 scope(@aws-sdk/*, @opentelemetry/* 등)는 건드리지 않는다.
+        val BLACKLISTED_NODE_MODULES_DIRS = listOf(
+            "@azure",
+            "@d-fischer",
+            "@grpc",
+            "@line",
+            "@microsoft",
+            "@twurple",
+            "@typespec",
+            "ircv3",
+            "zca-js",
         )
     }
 }

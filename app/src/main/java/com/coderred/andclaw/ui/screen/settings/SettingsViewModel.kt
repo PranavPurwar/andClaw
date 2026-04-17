@@ -1943,7 +1943,8 @@ class SettingsViewModel(
             val previewResult = runCatching {
                 val sessionEntries = processManager.getSessionLogEntries()
                 val gatewayErrorMessage = processManager.gatewayState.value.errorMessage
-                val gatewayLogLines = processManager.logLines.value
+                val gatewayLogLines = processManager.logLines.value +
+                    BugReportBundleBuilder.collectSupplementalRuntimeLogLines(prorootManager.rootfsDir)
                 buildBugReportPreview(sessionEntries, gatewayErrorMessage, gatewayLogLines)
             }
 
@@ -1995,7 +1996,9 @@ class SettingsViewModel(
                 val context = getApplication<Application>()
                 val sessionEntries = processManager.getSessionLogEntries()
                 val gatewayErrorMessage = processManager.gatewayState.value.errorMessage
-                val gatewayLogLines = processManager.logLines.value
+                val gatewayLogLines = processManager.logLines.value +
+                    BugReportBundleBuilder.collectSupplementalRuntimeLogLines(prorootManager.rootfsDir)
+                val attachments = BugReportBundleBuilder.collectSupplementalRuntimeAttachments(prorootManager.rootfsDir)
                 val metadata = BugReportBundleBuilder.collectMetadata(context)
                 val bundle = BugReportBundleBuilder.build(
                     sessionEntries = sessionEntries,
@@ -2003,6 +2006,7 @@ class SettingsViewModel(
                     metadata = metadata,
                     gatewayErrorMessage = gatewayErrorMessage,
                     processErrorMessage = gatewayErrorMessage,
+                    attachments = attachments,
                 )
                 val artifact = BugReportZipWriter.write(context, bundle)
                 val artifactInfo = BugReportArtifactInfo(

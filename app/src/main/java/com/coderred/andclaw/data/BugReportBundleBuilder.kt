@@ -5,6 +5,7 @@ package com.coderred.andclaw.data
 import android.content.Context
 import android.os.Build
 import com.coderred.andclaw.BuildConfig
+import java.io.File
 import java.util.Locale
 
 data class BugReportBundle(
@@ -14,6 +15,12 @@ data class BugReportBundle(
     val processErrorMessage: String? = null,
     val sessionErrors: List<BugReportSessionErrorEntry> = emptyList(),
     val gatewayLogs: List<String> = emptyList(),
+    val attachments: List<BugReportTextAttachment> = emptyList(),
+)
+
+data class BugReportTextAttachment(
+    val entryName: String,
+    val content: String,
 )
 
 data class BugReportMetadata(
@@ -36,6 +43,38 @@ data class BugReportSessionErrorEntry(
 )
 
 object BugReportBundleBuilder {
+    fun collectSupplementalRuntimeAttachments(rootfsDir: File): List<BugReportTextAttachment> {
+        return SUPPLEMENTAL_RUNTIME_LOG_FILES.mapNotNull { spec ->
+            val file = File(rootfsDir, spec.sourceRelativePath)
+            if (!file.isFile) return@mapNotNull null
+
+            BugReportTextAttachment(
+                entryName = spec.zipEntryName,
+                content = file.readText(),
+            )
+        }
+    }
+
+    fun collectSupplementalRuntimeLogLines(rootfsDir: File): List<String> {
+        val lines = mutableListOf<String>()
+
+        SUPPLEMENTAL_RUNTIME_LOG_FILES.forEach { spec ->
+            val file = File(rootfsDir, spec.sourceRelativePath)
+            if (!file.isFile) return@forEach
+
+            lines += "[andClaw][RuntimeFile] /${spec.sourceRelativePath}"
+            file.useLines { sequence ->
+                sequence
+                    .map { it.trimEnd() }
+                    .filter { it.isNotBlank() }
+                    .take(MAX_SUPPLEMENTAL_RUNTIME_LOG_LINES_PER_FILE)
+                    .forEach(lines::add)
+            }
+        }
+
+        return lines
+    }
+
     fun sanitizeGatewayLogLines(gatewayLogLines: List<String>): List<String> {
         val sanitizedLines = gatewayLogLines
             .asSequence()
@@ -61,6 +100,7 @@ object BugReportBundleBuilder {
         metadata: BugReportMetadata,
         gatewayErrorMessage: String? = null,
         processErrorMessage: String? = null,
+        attachments: List<BugReportTextAttachment> = emptyList(),
         generatedAtEpochMs: Long = System.currentTimeMillis(),
     ): BugReportBundle {
         return BugReportBundle(
@@ -83,6 +123,7 @@ object BugReportBundleBuilder {
                 }
                 .toList(),
             gatewayLogs = sanitizeGatewayLogLines(gatewayLogLines),
+            attachments = attachments,
         )
     }
 
@@ -136,7 +177,18 @@ private fun String.sanitizeGatewayLogLine(): String {
 
 private const val MAX_GATEWAY_LOG_LINES = 400
 private const val MAX_GATEWAY_LOG_LINE_LENGTH = 500
+private const val MAX_SUPPLEMENTAL_RUNTIME_LOG_LINES_PER_FILE = 200
 private const val PROROOT_PRESERVE_KEYWORD = "proroot"
+private data class SupplementalRuntimeLogSpec(
+    val sourceRelativePath: String,
+    val zipEntryName: String,
+)
+private val SUPPLEMENTAL_RUNTIME_LOG_FILES = listOf(
+    SupplementalRuntimeLogSpec(
+        sourceRelativePath = "tmp/proroot-sigsys-last.txt",
+        zipEntryName = "runtime/proroot-sigsys-last.txt",
+    ),
+)
 private const val SECRET_KEY_PATTERN =
     "TELEGRAM_BOT_TOKEN|DISCORD_BOT_TOKEN|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|GOOGLE_API_KEY|GEMINI_API_KEY|COPILOT_GITHUB_TOKEN|GH_TOKEN|GITHUB_TOKEN|ZAI_API_KEY|Z_AI_API_KEY|KIMI_API_KEY|KIMICODE_API_KEY|MINIMAX_API_KEY|BRAVE_API_KEY|BRAVE_SEARCH_API_KEY|API_KEY|API-KEY|AUTHORIZATION|PASSWORD|SECRET|TOKEN|ACCESS_TOKEN|REFRESH_TOKEN|ID_TOKEN|X_API_KEY|X-API-KEY"
 private val JSON_SECRET_REGEX = Regex(
