@@ -288,15 +288,19 @@ class OpenClawConfigEditorManager(
         )
         // dist BFS 기준 dead island. scope 전체가 unreachable인 것만 scope 단위로 넣고,
         // 살아있는 subpkg가 하나라도 있는 scope(@aws-sdk/*, @opentelemetry/* 등)는 건드리지 않는다.
+        // @jimp/jimp: baileys가 `import('jimp').catch(...)`로 optional 로드하는데, sharp native가
+        // 우선 사용되므로 실질 dead.
         val BLACKLISTED_NODE_MODULES_DIRS = listOf(
             "@azure",
             "@d-fischer",
             "@grpc",
+            "@jimp",
             "@line",
             "@microsoft",
             "@twurple",
             "@typespec",
             "ircv3",
+            "jimp",
             "zca-js",
         )
     }
