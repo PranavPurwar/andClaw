@@ -163,12 +163,10 @@ Ela não é enviada para nossos servidores.</string>
     <string name="settings_openclaw_extension_prune_failed">Falha ao excluir extensões OpenClaw não utilizadas</string>
     <string name="settings_openclaw_extension_prune_failed_message">Não foi possível excluir as extensões OpenClaw pré-selecionadas.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Excluídas: %1$d
-Já ausentes: %2$d
-Falhas: %3$d
+Falhas: %2$d
 Alguns itens não puderam ser removidos.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Excluídas: %1$d
-Já ausentes: %2$d
-Falhas: %3$d</string>
+Falhas: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Excluir</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Disponível apenas quando proot (estabilidade) estiver selecionado.</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Carregar este backup substituirá o JSON atualmente no editor. O backup só será realmente aplicado depois que você salvar.</string>

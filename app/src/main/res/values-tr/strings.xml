@@ -163,12 +163,10 @@ Anahtarınız sunucularımıza gönderilmez.</string>
     <string name="settings_openclaw_extension_prune_failed">Kullanılmayan OpenClaw uzantıları silinemedi</string>
     <string name="settings_openclaw_extension_prune_failed_message">Önceden seçilmiş OpenClaw uzantıları silinemedi.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Silindi: %1$d
-Zaten yok: %2$d
-Başarısız: %3$d
+Başarısız: %2$d
 Bazı öğeler kaldırılamadı.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Silindi: %1$d
-Zaten yok: %2$d
-Başarısız: %3$d</string>
+Başarısız: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Sil</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Yalnızca proot (kararlılık) seçildiğinde kullanılabilir.</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Bu yedeği yüklemek editördeki mevcut JSON içeriğini değiştirecek. Kaydetmeden önce yedek gerçekten uygulanmaz.</string>

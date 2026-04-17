@@ -174,12 +174,10 @@
     <string name="settings_openclaw_extension_prune_failed">미사용 OpenClaw 익스텐션 삭제 실패</string>
     <string name="settings_openclaw_extension_prune_failed_message">사전 지정된 OpenClaw 익스텐션을 삭제하지 못했습니다.</string>
     <string name="settings_openclaw_extension_prune_result_partial">삭제됨: %1$d개
-이미 없음: %2$d개
-실패: %3$d개
+실패: %2$d개
 일부 항목은 삭제하지 못했습니다.</string>
     <string name="settings_openclaw_extension_prune_result_summary">삭제됨: %1$d개
-이미 없음: %2$d개
-실패: %3$d개</string>
+실패: %2$d개</string>
     <string name="settings_openclaw_extension_prune_action">삭제</string>
     <string name="settings_openclaw_extension_prune_requires_proot">proot(안정성)을 선택했을 때만 사용할 수 있습니다.</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">이 백업을 불러오면 현재 편집기 내용이 교체됩니다. 저장 전까지는 실제 복원되지 않습니다.</string>

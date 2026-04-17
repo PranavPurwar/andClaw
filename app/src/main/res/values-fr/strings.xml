@@ -164,12 +164,10 @@ Elle n’est pas envoyée à nos serveurs.</string>
     <string name="settings_openclaw_extension_prune_failed">Échec de la suppression des extensions OpenClaw inutilisées</string>
     <string name="settings_openclaw_extension_prune_failed_message">Impossible de supprimer les extensions OpenClaw présélectionnées.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Supprimées : %1$d
-Déjà absentes : %2$d
-Échecs : %3$d
+Échecs : %2$d
 Certains éléments n’ont pas pu être supprimés.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Supprimées : %1$d
-Déjà absentes : %2$d
-Échecs : %3$d</string>
+Échecs : %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Supprimer</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Disponible uniquement lorsque proot (stabilité) est sélectionné.</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Le chargement de cette sauvegarde remplacera le JSON actuellement présent dans l’éditeur. La sauvegarde ne sera réellement appliquée qu’après l’enregistrement.</string>

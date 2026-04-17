@@ -1489,7 +1489,6 @@ class SettingsViewModel(
             try {
                 val result = createOpenClawConfigEditorManager().pruneBlacklistedExtensions()
                 val removed = result.removedCount
-                val missing = result.missingCount
                 val failed = result.failedCount
                 val success = failed == 0
                 val outputResId = if (success) {
@@ -1502,7 +1501,6 @@ class SettingsViewModel(
                     output = appString(
                         outputResId,
                         removed,
-                        missing,
                         failed,
                     ),
                 )

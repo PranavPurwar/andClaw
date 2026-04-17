@@ -163,12 +163,10 @@
     <string name="settings_openclaw_extension_prune_failed">ลบส่วนขยาย OpenClaw ที่ไม่ได้ใช้ไม่สำเร็จ</string>
     <string name="settings_openclaw_extension_prune_failed_message">ไม่สามารถลบส่วนขยาย OpenClaw ที่กำหนดไว้ล่วงหน้าได้</string>
     <string name="settings_openclaw_extension_prune_result_partial">ลบแล้ว: %1$d
-ไม่มีอยู่แล้ว: %2$d
-ล้มเหลว: %3$d
+ล้มเหลว: %2$d
 มีบางรายการที่ลบไม่สำเร็จ</string>
     <string name="settings_openclaw_extension_prune_result_summary">ลบแล้ว: %1$d
-ไม่มีอยู่แล้ว: %2$d
-ล้มเหลว: %3$d</string>
+ล้มเหลว: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">ลบ</string>
     <string name="settings_openclaw_extension_prune_requires_proot">ใช้ได้เฉพาะเมื่อเลือก proot (เสถียรภาพ) เท่านั้น</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">การโหลดข้อมูลสำรองนี้จะเขียนทับ JSON ปัจจุบันในตัวแก้ไข และจะยังไม่ถูกนำไปใช้จริงจนกว่าจะกดบันทึก</string>

@@ -163,12 +163,10 @@ Kunci ini tidak dikirim ke server kami.</string>
     <string name="settings_openclaw_extension_prune_failed">Gagal menghapus ekstensi OpenClaw yang tidak digunakan</string>
     <string name="settings_openclaw_extension_prune_failed_message">Gagal menghapus ekstensi OpenClaw yang sudah dipilih.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Dihapus: %1$d
-Sudah tidak ada: %2$d
-Gagal: %3$d
+Gagal: %2$d
 Beberapa item tidak bisa dihapus.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Dihapus: %1$d
-Sudah tidak ada: %2$d
-Gagal: %3$d</string>
+Gagal: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Hapus</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Hanya tersedia saat proot (stabilitas) dipilih.</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Memuat cadangan ini akan mengganti JSON yang sedang ada di editor. Cadangan belum benar-benar diterapkan sampai kamu menyimpan.</string>

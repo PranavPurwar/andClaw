@@ -163,12 +163,10 @@
     <string name="settings_openclaw_extension_prune_failed">अनुपयोगी OpenClaw एक्सटेंशन हटाने में विफल</string>
     <string name="settings_openclaw_extension_prune_failed_message">पहले से चुने गए OpenClaw एक्सटेंशन हटाए नहीं जा सके।</string>
     <string name="settings_openclaw_extension_prune_result_partial">हटाए गए: %1$d
-पहले से नहीं हैं: %2$d
-विफल: %3$d
+विफल: %2$d
 कुछ आइटम हटाए नहीं जा सके।</string>
     <string name="settings_openclaw_extension_prune_result_summary">हटाए गए: %1$d
-पहले से नहीं हैं: %2$d
-विफल: %3$d</string>
+विफल: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">हटाएँ</string>
     <string name="settings_openclaw_extension_prune_requires_proot">यह केवल तब उपलब्ध है जब proot (स्थिरता) चुना गया हो।</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">इस बैकअप को लोड करने पर एडिटर में मौजूद JSON बदल जाएगा। सेव करने तक बैकअप वास्तव में लागू नहीं होगा।</string>

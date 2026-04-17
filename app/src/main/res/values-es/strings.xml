@@ -175,12 +175,10 @@ No se envía a nuestros servidores.</string>
     <string name="settings_openclaw_extension_prune_failed">No se pudieron eliminar las extensiones OpenClaw no utilizadas</string>
     <string name="settings_openclaw_extension_prune_failed_message">No se pudieron eliminar las extensiones de OpenClaw preseleccionadas.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Eliminadas: %1$d
-Ya ausentes: %2$d
-Fallidas: %3$d
+Fallidas: %2$d
 No se pudieron quitar algunos elementos.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Eliminadas: %1$d
-Ya ausentes: %2$d
-Fallidas: %3$d</string>
+Fallidas: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Eliminar</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Disponible solo cuando se selecciona proot (estabilidad).</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Cargar esta copia de seguridad reemplazará el JSON actual del editor. La copia no se aplica realmente hasta que guardes.</string>

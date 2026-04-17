@@ -163,12 +163,10 @@ Khóa này không được gửi đến máy chủ của chúng tôi.</string>
     <string name="settings_openclaw_extension_prune_failed">Không thể xóa extension OpenClaw không dùng</string>
     <string name="settings_openclaw_extension_prune_failed_message">Không thể xóa các extension OpenClaw đã chọn sẵn.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Đã xóa: %1$d
-Đã không còn: %2$d
-Thất bại: %3$d
+Thất bại: %2$d
 Một số mục không thể xóa.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Đã xóa: %1$d
-Đã không còn: %2$d
-Thất bại: %3$d</string>
+Thất bại: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Xóa</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Chỉ dùng được khi đã chọn proot (ổn định).</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Tải bản sao lưu này sẽ thay thế JSON hiện có trong trình chỉnh sửa. Bản sao lưu chỉ thực sự được áp dụng sau khi bạn lưu.</string>

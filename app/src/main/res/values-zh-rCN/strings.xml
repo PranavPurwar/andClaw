@@ -164,12 +164,10 @@
     <string name="settings_openclaw_extension_prune_failed">删除未使用的 OpenClaw 扩展失败</string>
     <string name="settings_openclaw_extension_prune_failed_message">无法删除预先指定的 OpenClaw 扩展。</string>
     <string name="settings_openclaw_extension_prune_result_partial">已删除：%1$d
-本来不存在：%2$d
-失败：%3$d
+失败：%2$d
 有些项目未能删除。</string>
     <string name="settings_openclaw_extension_prune_result_summary">已删除：%1$d
-本来不存在：%2$d
-失败：%3$d</string>
+失败：%2$d</string>
     <string name="settings_openclaw_extension_prune_action">删除</string>
     <string name="settings_openclaw_extension_prune_requires_proot">仅在选择了 proot（稳定性）时可用。</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">加载此备份会替换编辑器中当前的 JSON。在保存之前，备份不会真正生效。</string>

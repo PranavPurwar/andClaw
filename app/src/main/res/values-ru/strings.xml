@@ -163,12 +163,10 @@
     <string name="settings_openclaw_extension_prune_failed">Не удалось удалить неиспользуемые расширения OpenClaw</string>
     <string name="settings_openclaw_extension_prune_failed_message">Не удалось удалить заранее выбранные расширения OpenClaw.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Удалено: %1$d
-Уже отсутствует: %2$d
-Ошибка: %3$d
+Ошибка: %2$d
 Некоторые элементы не удалось удалить.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Удалено: %1$d
-Уже отсутствует: %2$d
-Ошибка: %3$d</string>
+Ошибка: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Удалить</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Доступно только когда выбран proot (стабильность).</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">При загрузке этой резервной копии JSON в редакторе будет заменён. Копия реально применится только после сохранения.</string>

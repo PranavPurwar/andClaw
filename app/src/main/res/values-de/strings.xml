@@ -169,12 +169,10 @@ Er wird nicht an unsere Server gesendet.</string>
     <string name="settings_openclaw_extension_prune_failed">Ungenutzte OpenClaw-Erweiterungen konnten nicht gelöscht werden</string>
     <string name="settings_openclaw_extension_prune_failed_message">Vordefinierte OpenClaw-Erweiterungen konnten nicht gelöscht werden.</string>
     <string name="settings_openclaw_extension_prune_result_partial">Gelöscht: %1$d
-Bereits fehlend: %2$d
-Fehlgeschlagen: %3$d
+Fehlgeschlagen: %2$d
 Einige Einträge konnten nicht entfernt werden.</string>
     <string name="settings_openclaw_extension_prune_result_summary">Gelöscht: %1$d
-Bereits fehlend: %2$d
-Fehlgeschlagen: %3$d</string>
+Fehlgeschlagen: %2$d</string>
     <string name="settings_openclaw_extension_prune_action">Löschen</string>
     <string name="settings_openclaw_extension_prune_requires_proot">Nur verfügbar, wenn proot (stabil) ausgewählt ist.</string>
     <string name="settings_openclaw_config_editor_replace_confirm_message">Beim Laden dieses Backups wird das aktuell im Editor vorhandene JSON ersetzt. Das Backup wird erst nach dem Speichern wirklich angewendet.</string>
