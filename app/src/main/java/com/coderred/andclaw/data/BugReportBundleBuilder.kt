@@ -45,7 +45,7 @@ data class BugReportSessionErrorEntry(
 object BugReportBundleBuilder {
     fun collectSupplementalRuntimeAttachments(rootfsDir: File): List<BugReportTextAttachment> {
         return SUPPLEMENTAL_RUNTIME_LOG_FILES.mapNotNull { spec ->
-            val file = File(rootfsDir, spec.sourceRelativePath)
+            val file = resolveSupplementalRuntimeFile(rootfsDir, spec) ?: return@mapNotNull null
             if (!file.isFile) return@mapNotNull null
 
             BugReportTextAttachment(
@@ -59,10 +59,10 @@ object BugReportBundleBuilder {
         val lines = mutableListOf<String>()
 
         SUPPLEMENTAL_RUNTIME_LOG_FILES.forEach { spec ->
-            val file = File(rootfsDir, spec.sourceRelativePath)
+            val file = resolveSupplementalRuntimeFile(rootfsDir, spec) ?: return@forEach
             if (!file.isFile) return@forEach
 
-            lines += "[andClaw][RuntimeFile] /${spec.sourceRelativePath}"
+            lines += "[andClaw][RuntimeFile] ${spec.displayPath}"
             file.useLines { sequence ->
                 sequence
                     .map { it.trimEnd() }
@@ -179,14 +179,42 @@ private const val MAX_GATEWAY_LOG_LINES = 400
 private const val MAX_GATEWAY_LOG_LINE_LENGTH = 500
 private const val MAX_SUPPLEMENTAL_RUNTIME_LOG_LINES_PER_FILE = 200
 private const val PROROOT_PRESERVE_KEYWORD = "proroot"
+
+private enum class SupplementalRuntimeBase { ROOTFS, ROOTFS_PARENT }
+
 private data class SupplementalRuntimeLogSpec(
+    val base: SupplementalRuntimeBase,
     val sourceRelativePath: String,
     val zipEntryName: String,
-)
+) {
+    val displayPath: String
+        get() = when (base) {
+            SupplementalRuntimeBase.ROOTFS -> "/$sourceRelativePath"
+            SupplementalRuntimeBase.ROOTFS_PARENT -> "../$sourceRelativePath"
+        }
+}
+
+private fun resolveSupplementalRuntimeFile(
+    rootfsDir: File,
+    spec: SupplementalRuntimeLogSpec,
+): File? {
+    val baseDir = when (spec.base) {
+        SupplementalRuntimeBase.ROOTFS -> rootfsDir
+        SupplementalRuntimeBase.ROOTFS_PARENT -> rootfsDir.parentFile ?: return null
+    }
+    return File(baseDir, spec.sourceRelativePath)
+}
+
 private val SUPPLEMENTAL_RUNTIME_LOG_FILES = listOf(
     SupplementalRuntimeLogSpec(
+        base = SupplementalRuntimeBase.ROOTFS,
         sourceRelativePath = "tmp/proroot-sigsys-last.txt",
         zipEntryName = "runtime/proroot-sigsys-last.txt",
+    ),
+    SupplementalRuntimeLogSpec(
+        base = SupplementalRuntimeBase.ROOTFS_PARENT,
+        sourceRelativePath = "proroot-sigbus-maps.txt",
+        zipEntryName = "runtime/proroot-sigbus-maps.txt",
     ),
 )
 private const val SECRET_KEY_PATTERN =

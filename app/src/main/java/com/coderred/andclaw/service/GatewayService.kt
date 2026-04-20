@@ -68,8 +68,8 @@ class GatewayService : Service() {
         private const val START_WAKE_LOCK_TIMEOUT_BACKGROUND_MS = 26L * 60L * 1000L
         private const val START_TERMINAL_WAIT_TIMEOUT_MS = 300_000L
         private const val RESTART_WAKE_LOCK_TIMEOUT_MS = 300_000L
-        private const val PROOT_START_TERMINAL_WAIT_TIMEOUT_MS = 900_000L
-        private const val PROOT_RESTART_WAKE_LOCK_TIMEOUT_MS = 900_000L
+        private const val PROOT_START_TERMINAL_WAIT_TIMEOUT_MS = 6L * 60L * 60L * 1000L
+        private const val PROOT_RESTART_WAKE_LOCK_TIMEOUT_MS = 6L * 60L * 60L * 1000L
         private const val ATTACH_HEALTH_PROBE_TIMEOUT_MS = 8_000L
         private const val STICKY_PREFLIGHT_HEALTH_PROBE_TIMEOUT_MS = 2_500L
         private const val WHATSAPP_LOGIN_WAKE_LOCK_TIMEOUT_MS = 4L * 60L * 1000L
