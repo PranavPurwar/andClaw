@@ -153,12 +153,6 @@ class OpenClawConfigEditorManager(
                 return@forEach
             }
 
-            if (containsNestedSymbolicLink(targetPath)) {
-                failed += name
-                counts[2] += countFilesWithoutFollowingSymlinks(targetPath)
-                return@forEach
-            }
-
             val fileCount = countFilesWithoutFollowingSymlinks(targetPath)
             val deleted = runCatching { deleteTreeWithoutFollowingSymlinks(targetPath) }
                 .getOrDefault(false)
@@ -198,34 +192,6 @@ class OpenClawConfigEditorManager(
             }
         }
         return false
-    }
-
-    private fun containsNestedSymbolicLink(targetPath: Path): Boolean {
-        var foundSymlink = false
-        Files.walkFileTree(targetPath, object : SimpleFileVisitor<Path>() {
-            override fun preVisitDirectory(
-                dir: Path,
-                attrs: BasicFileAttributes,
-            ): FileVisitResult {
-                if (dir != targetPath && Files.isSymbolicLink(dir)) {
-                    foundSymlink = true
-                    return FileVisitResult.TERMINATE
-                }
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun visitFile(
-                file: Path,
-                attrs: BasicFileAttributes,
-            ): FileVisitResult {
-                if (Files.isSymbolicLink(file)) {
-                    foundSymlink = true
-                    return FileVisitResult.TERMINATE
-                }
-                return FileVisitResult.CONTINUE
-            }
-        })
-        return foundSymlink
     }
 
     private fun deleteTreeWithoutFollowingSymlinks(targetPath: Path): Boolean {

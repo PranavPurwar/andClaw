@@ -50,7 +50,7 @@ object BugReportBundleBuilder {
 
             BugReportTextAttachment(
                 entryName = spec.zipEntryName,
-                content = file.readText(),
+                content = sanitizeSupplementalRuntimeFileContent(file, spec),
             )
         }
     }
@@ -64,8 +64,10 @@ object BugReportBundleBuilder {
 
             lines += "[andClaw][RuntimeFile] ${spec.displayPath}"
             file.useLines { sequence ->
-                sequence
-                    .map { it.trimEnd() }
+                sanitizeSupplementalRuntimeLines(
+                    sequence.map { it.trimEnd() }.toList(),
+                    spec,
+                ).asSequence()
                     .filter { it.isNotBlank() }
                     .take(MAX_SUPPLEMENTAL_RUNTIME_LOG_LINES_PER_FILE)
                     .forEach(lines::add)
@@ -157,22 +159,7 @@ private fun String?.normalizeError(): String? {
 }
 
 private fun String.sanitizeGatewayLogLine(): String {
-    var sanitized = this
-    sanitized = JSON_SECRET_REGEX.replace(sanitized) { match ->
-        "${match.groupValues[1]}<redacted>${match.groupValues[3]}"
-    }
-    sanitized = AUTH_HEADER_REGEX.replace(sanitized) { match ->
-        "${match.groupValues[1]}<redacted>"
-    }
-    sanitized = KEY_VALUE_SECRET_REGEX.replace(sanitized) { match ->
-        "${match.groupValues[1]}${match.groupValues[2]}<redacted>"
-    }
-    sanitized = BEARER_REGEX.replace(sanitized, "Bearer <redacted>")
-    sanitized = QUERY_SECRET_REGEX.replace(sanitized) { match ->
-        "${match.groupValues[1]}<redacted>"
-    }
-    sanitized = RAW_KEY_REGEX.replace(sanitized, "<redacted>")
-    return sanitized.take(MAX_GATEWAY_LOG_LINE_LENGTH)
+    return sanitizeGatewayLogLineUnbounded(this).take(MAX_GATEWAY_LOG_LINE_LENGTH)
 }
 
 private const val MAX_GATEWAY_LOG_LINES = 400
@@ -186,12 +173,18 @@ private data class SupplementalRuntimeLogSpec(
     val base: SupplementalRuntimeBase,
     val sourceRelativePath: String,
     val zipEntryName: String,
+    val sanitizeMode: SupplementalRuntimeSanitizeMode = SupplementalRuntimeSanitizeMode.NONE,
 ) {
     val displayPath: String
         get() = when (base) {
             SupplementalRuntimeBase.ROOTFS -> "/$sourceRelativePath"
             SupplementalRuntimeBase.ROOTFS_PARENT -> "../$sourceRelativePath"
         }
+}
+
+private enum class SupplementalRuntimeSanitizeMode {
+    NONE,
+    LAUNCHER_POSTMORTEM,
 }
 
 private fun resolveSupplementalRuntimeFile(
@@ -212,11 +205,75 @@ private val SUPPLEMENTAL_RUNTIME_LOG_FILES = listOf(
         zipEntryName = "runtime/proroot-sigsys-last.txt",
     ),
     SupplementalRuntimeLogSpec(
+        base = SupplementalRuntimeBase.ROOTFS,
+        sourceRelativePath = "tmp/proroot-launcher-last.txt",
+        zipEntryName = "runtime/proroot-launcher-last.txt",
+        sanitizeMode = SupplementalRuntimeSanitizeMode.LAUNCHER_POSTMORTEM,
+    ),
+    SupplementalRuntimeLogSpec(
         base = SupplementalRuntimeBase.ROOTFS_PARENT,
         sourceRelativePath = "proroot-sigbus-maps.txt",
         zipEntryName = "runtime/proroot-sigbus-maps.txt",
     ),
 )
+
+private fun sanitizeSupplementalRuntimeFileContent(
+    file: File,
+    spec: SupplementalRuntimeLogSpec,
+): String {
+    return when (spec.sanitizeMode) {
+        SupplementalRuntimeSanitizeMode.NONE -> file.readText()
+        SupplementalRuntimeSanitizeMode.LAUNCHER_POSTMORTEM -> file.useLines { sequence ->
+            sanitizeSupplementalRuntimeLines(sequence.toList(), spec).joinToString("\n")
+        }
+    }
+}
+
+private fun sanitizeSupplementalRuntimeLines(
+    lines: List<String>,
+    spec: SupplementalRuntimeLogSpec,
+): List<String> {
+    return when (spec.sanitizeMode) {
+        SupplementalRuntimeSanitizeMode.NONE -> lines
+        SupplementalRuntimeSanitizeMode.LAUNCHER_POSTMORTEM -> sanitizeLauncherPostmortemLines(lines)
+    }
+}
+
+private fun sanitizeLauncherPostmortemLines(lines: List<String>): List<String> {
+    var redactNextArg = false
+
+    return lines.map { line ->
+        val trimmed = line.trimEnd()
+        val argvPrefix = ARG_LINE_REGEX.matchEntire(trimmed)
+        if (argvPrefix != null) {
+            val argValue = argvPrefix.groupValues[2]
+            val sanitizedValue = when {
+                redactNextArg -> "<redacted>"
+                isSensitiveLauncherFlag(argValue) -> sanitizeSensitiveLauncherArg(argValue)
+                else -> sanitizeGatewayLogLineUnbounded(argValue)
+            }
+            redactNextArg = argValue in SENSITIVE_LAUNCHER_NEXT_ARG_FLAGS
+            return@map "${argvPrefix.groupValues[1]}$sanitizedValue"
+        }
+
+        redactNextArg = false
+        sanitizeGatewayLogLineUnbounded(trimmed)
+    }
+}
+
+private fun isSensitiveLauncherFlag(argValue: String): Boolean {
+    return argValue in SENSITIVE_LAUNCHER_NEXT_ARG_FLAGS ||
+        SENSITIVE_LAUNCHER_INLINE_FLAGS.any { flag -> argValue.startsWith("$flag=") }
+}
+
+private fun sanitizeSensitiveLauncherArg(argValue: String): String {
+    SENSITIVE_LAUNCHER_INLINE_FLAGS.forEach { flag ->
+        if (argValue.startsWith("$flag=")) {
+            return "$flag=<redacted>"
+        }
+    }
+    return sanitizeGatewayLogLineUnbounded(argValue)
+}
 private const val SECRET_KEY_PATTERN =
     "TELEGRAM_BOT_TOKEN|DISCORD_BOT_TOKEN|OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|GOOGLE_API_KEY|GEMINI_API_KEY|COPILOT_GITHUB_TOKEN|GH_TOKEN|GITHUB_TOKEN|ZAI_API_KEY|Z_AI_API_KEY|KIMI_API_KEY|KIMICODE_API_KEY|MINIMAX_API_KEY|BRAVE_API_KEY|BRAVE_SEARCH_API_KEY|API_KEY|API-KEY|AUTHORIZATION|PASSWORD|SECRET|TOKEN|ACCESS_TOKEN|REFRESH_TOKEN|ID_TOKEN|X_API_KEY|X-API-KEY"
 private val JSON_SECRET_REGEX = Regex(
@@ -225,9 +282,51 @@ private val JSON_SECRET_REGEX = Regex(
 private val AUTH_HEADER_REGEX = Regex(
     "(?i)(\\bauthorization\\b\\s*[:=]\\s*)[^,;\\r\\n]+"
 )
+private val COOKIE_HEADER_REGEX = Regex(
+    "(?i)(\\bcookie\\b\\s*[:=]\\s*)[^,;\\r\\n]+"
+)
 private val KEY_VALUE_SECRET_REGEX = Regex(
     "(?i)\\b($SECRET_KEY_PATTERN)\\b\\s*([=:])\\s*[^\\s,;]+"
 )
 private val BEARER_REGEX = Regex("(?i)bearer\\s+[a-z0-9._\\-]+")
 private val QUERY_SECRET_REGEX = Regex("(?i)([?&](?:token|api_key|key)=)[^&\\s]+")
 private val RAW_KEY_REGEX = Regex("\\b(?:sk|or|rk)-[A-Za-z0-9_\\-]{8,}\\b")
+private val ARG_LINE_REGEX = Regex("""^(\[proroot] launcher: argv\[\d+]=)(.*)$""")
+private val SENSITIVE_LAUNCHER_NEXT_ARG_FLAGS = setOf(
+    "--api-key",
+    "--token",
+    "--password",
+    "--header",
+    "-H",
+    "--cookie",
+    "--authorization",
+)
+private val SENSITIVE_LAUNCHER_INLINE_FLAGS = setOf(
+    "--api-key",
+    "--token",
+    "--password",
+    "--cookie",
+    "--authorization",
+)
+
+private fun sanitizeGatewayLogLineUnbounded(line: String): String {
+    var sanitized = line
+    sanitized = JSON_SECRET_REGEX.replace(sanitized) { match ->
+        "${match.groupValues[1]}<redacted>${match.groupValues[3]}"
+    }
+    sanitized = AUTH_HEADER_REGEX.replace(sanitized) { match ->
+        "${match.groupValues[1]}<redacted>"
+    }
+    sanitized = COOKIE_HEADER_REGEX.replace(sanitized) { match ->
+        "${match.groupValues[1]}<redacted>"
+    }
+    sanitized = KEY_VALUE_SECRET_REGEX.replace(sanitized) { match ->
+        "${match.groupValues[1]}${match.groupValues[2]}<redacted>"
+    }
+    sanitized = BEARER_REGEX.replace(sanitized, "Bearer <redacted>")
+    sanitized = QUERY_SECRET_REGEX.replace(sanitized) { match ->
+        "${match.groupValues[1]}<redacted>"
+    }
+    sanitized = RAW_KEY_REGEX.replace(sanitized, "<redacted>")
+    return sanitized
+}

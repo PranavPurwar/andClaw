@@ -9,8 +9,8 @@ When distributing APK/AAB artifacts, you must comply with each component's licen
 - Upstream: https://github.com/coderredlab/proroot
 - License: Proprietary (free to use; redistribution of modified binaries is not permitted)
 - Distribution note:
-  - `libproroot.so` is documented upstream as proprietary/free-to-use.
-  - `libldlinux.so` is derived from GNU C Library and remains subject to LGPL-2.1 obligations.
+  - This app redistributes the upstream release binaries `libproroot.so`, `libproroot-runtime.so`, `libproroot-bridge.so`, and `libproroot-linker.so`.
+  - The clean-room `libproroot-linker.so` package is the only bundled proroot linker artifact.
 
 ### 2) proot / libtalloc (legacy compatibility runtime)
 - Upstream:

@@ -48,13 +48,18 @@ class ProrootManager(
         const val GUEST_HOOK_LIB_PATH = "/root/.proroot/libproroot-runtime.so"
 
         const val GUEST_VFORK_SHIM_PATH = "/root/.proroot/libvfork_shim.so"
+
+        const val PROROOT_LAUNCHER_LIB = "libproroot.so"
+        const val PROROOT_RUNTIME_LIB = "libproroot-runtime.so"
+        const val PROROOT_BRIDGE_LIB = "libproroot-bridge.so"
+        const val PROROOT_LINKER_LIB = "libproroot-linker.so"
     }
 
     // ── 경로 ──
 
     /** nativeLibraryDir 의 proroot direct-exec binary (APK에서 추출됨) */
     private val nativeProrootPath: String
-        get() = File(context.applicationInfo.nativeLibraryDir, "libproroot.so").absolutePath
+        get() = File(context.applicationInfo.nativeLibraryDir, PROROOT_LAUNCHER_LIB).absolutePath
 
     /** nativeLibraryDir 의 legacy proot binary */
     private val nativeProotPath: String
@@ -74,7 +79,7 @@ class ProrootManager(
 
     /** nativeLibraryDir 의 proroot hook library */
     private val nativeHookLibPath: String
-        get() = File(context.applicationInfo.nativeLibraryDir, "libproroot-runtime.so").absolutePath
+        get() = File(context.applicationInfo.nativeLibraryDir, PROROOT_RUNTIME_LIB).absolutePath
 
 
     /**
@@ -140,8 +145,13 @@ class ProrootManager(
 
     val isProrootAvailable: Boolean
         get() {
-            val native = File(nativeProrootPath)
-            return native.exists() && native.canExecute()
+            val requiredFiles = listOf(
+                File(nativeProrootPath),
+                File(nativeHookLibPath),
+                File(nativeLinkerPath),
+                File(nativeTrampolinePath),
+            )
+            return requiredFiles.all { it.exists() && it.canExecute() }
         }
 
     val isProotAvailable: Boolean
@@ -281,7 +291,7 @@ class ProrootManager(
 
     /**
      * libproroot-runtime.so를 nativeLibraryDir에서 filesDir로 복사한다.
-     * rootfs의 ld-linux이 LD_PRELOAD로 로드하려면 SELinux 접근 가능한 경로가 필요.
+     * rootfs 안쪽의 guest loader가 접근하려면 SELinux 접근 가능한 경로가 필요.
      */
     fun setupHookLibrary() {
         val src = File(nativeHookLibPath)
@@ -517,13 +527,13 @@ class ProrootManager(
     val isOpenClawConfigured: Boolean
         get() = File(rootfsDir, "root/.openclaw/openclaw.json").exists()
 
-    /** nativeLibraryDir의 ld-linux (libldlinux.so) — v3 ld.so execve용 */
+    /** nativeLibraryDir의 clean-room linker — guest execve용 */
     private val nativeLinkerPath: String
-        get() = File(context.applicationInfo.nativeLibraryDir, "libldlinux.so").absolutePath
+        get() = File(context.applicationInfo.nativeLibraryDir, PROROOT_LINKER_LIB).absolutePath
 
     /** nativeLibraryDir의 static trampoline — seccomp-safe child exec용 */
     private val nativeTrampolinePath: String
-        get() = File(context.applicationInfo.nativeLibraryDir, "libproroot-bridge.so").absolutePath
+        get() = File(context.applicationInfo.nativeLibraryDir, PROROOT_BRIDGE_LIB).absolutePath
 
     fun buildEnvironment(
         extra: Map<String, String> = emptyMap(),
@@ -548,8 +558,6 @@ class ProrootManager(
             put("PROROOT_ROOTFS", rootfsDir.absolutePath)
             put("PROROOT_GUEST_EXE", OPENCLAW_NODE_BIN)
             put("PROROOT_TRAMPOLINE_PATH", nativeTrampolinePath)
-            put("PROROOT_NO_SECCOMP", "1")
-            put("PROROOT_FORCE_MMAP", "1")
             if (guestVforkShimHostPath.exists()) {
                 put("PROROOT_GUEST_LD_PRELOAD", GUEST_VFORK_SHIM_PATH)
             }

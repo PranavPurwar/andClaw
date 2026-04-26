@@ -8,9 +8,8 @@ Included Components (Key Runtime/Binary)
 1) proroot (Linux runtime engine)
 - Upstream: https://github.com/coderredlab/proroot
 - License: Proprietary (free to use, attribution required)
-- Includes libldlinux.so derived from GNU C Library (glibc)
-  - License: LGPL-2.1 (https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
-  - Source: https://sourceware.org/glibc/
+- Includes upstream release binaries libproroot.so, libproroot-runtime.so, libproroot-bridge.so, and libproroot-linker.so.
+- The clean-room libproroot-linker.so package is the only bundled proroot linker artifact.
 
 2) proot / libtalloc (legacy compatibility runtime)
 - Upstream:
