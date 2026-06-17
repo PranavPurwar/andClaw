@@ -297,7 +297,7 @@ private fun sanitizeSupplementalRuntimeLines(
         SupplementalRuntimeSanitizeMode.LAUNCHER_POSTMORTEM -> sanitizeLauncherPostmortemLines(lines)
         SupplementalRuntimeSanitizeMode.OPENCLAW_LOG_TAIL -> lines
             .takeLast(MAX_SUPPLEMENTAL_RUNTIME_LOG_LINES_PER_FILE)
-            .map { it.trimEnd().sanitizeGatewayLogLine() }
+            .map { sanitizeGatewayLogLineUnbounded(it.trimEnd()) }
     }
 }
 
