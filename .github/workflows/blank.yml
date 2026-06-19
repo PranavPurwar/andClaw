@@ -27,6 +27,26 @@ jobs:
 
     - name: Prepare Assets
       run: |
+        # Recreate the missing Dockerfile in the root directory
+        cat << 'EOF' > Dockerfile.openclaw-builder
+        FROM --platform=linux/arm64/v8 ubuntu:22.04
+        
+        # Install basic tools needed to build/bundle runtime assets
+        ENV DEBIAN_FRONTEND=noninteractive
+        RUN apt-get update && apt-get install -y \
+            curl \
+            git \
+            build-essential \
+            python3 \
+            & \
+            rm -rf /var/lib/apt/lists/*
+            
+        WORKDIR /workspace
+        EOF
+
+        echo "Created missing Dockerfile.openclaw-builder dynamically."
+
+        # Grant execution and run the asset setup script
         chmod +x ./scripts/setup-assets.sh
         ./scripts/setup-assets.sh
 
